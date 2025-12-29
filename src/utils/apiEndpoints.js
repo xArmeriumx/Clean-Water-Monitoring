@@ -4,9 +4,9 @@
  */
 
 // Base API URL
-// Uses VITE_API_URL from environment if available (for production/Vercel)
-// Fallback to '/api' for local development (using Vite proxy)
-const API_BASE = (import.meta.env.VITE_API_URL || '/api').replace(/\/$/, '');
+// Base API URL
+// Forced to '/api' to ensure Vercel Proxy is always used
+const API_BASE = '/api';
 
 // ==================== Authentication ====================
 export const AUTH_ENDPOINTS = {
