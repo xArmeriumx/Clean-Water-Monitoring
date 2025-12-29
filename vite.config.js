@@ -18,21 +18,12 @@ export default defineConfig({
         : undefined,
     proxy: {
       '/api': {
-        target: 'https://localhost:5000',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/uploads': {
-        target: 'https://localhost:5000',
-        changeOrigin: true,
-        secure: false,
-      },
-      '/labs': {
-        target: 'https://localhost:5000',
+        target: 'https://api-water-monitoring.onrender.com',
         changeOrigin: true,
         secure: false,
       },
     },
+
   },
   build: {
     outDir: 'dist',
