@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { apiGet, apiPost, apiDelete, apiFetch } from '../../utils/api';
 import {
   Box,
@@ -42,16 +42,37 @@ import {
   RadioGroup,
   Radio,
   Stack,
-  Center,
-  Spinner,
 } from '@chakra-ui/react';
 import { ArrowBackIcon, EditIcon, DeleteIcon, RepeatIcon } from '@chakra-ui/icons';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 
-// Lazy load MapView (which contains Leaflet and Search)
-const MapView = lazy(() => import('../../components/ui/MapView'));
+// ------ แผนที่ ------
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
+import L from 'leaflet';
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png',
+});
+
+// ------ เพิ่ม Component สำหรับเลือกพิกัด ------
+function LocationSelector({ currentLocation, setCurrentLocation }) {
+  useMapEvents({
+    click(e) {
+      const { lat, lng } = e.latlng;
+      setCurrentLocation({
+        ...currentLocation,
+        coordinates: `${lat.toFixed(6)},${lng.toFixed(6)}`,
+      });
+    },
+  });
+  return null;
+}
 
 function Manage() {
   const navigate = useNavigate();
@@ -61,16 +82,15 @@ function Manage() {
   const token = user?.token || '';
 
   const [locations, setLocations] = useState([]);
+  const [unlinkedDevices, setUnlinkedDevices] = useState([]);
   const [currentLocation, setCurrentLocation] = useState({ id: null, name: '', coordinates: '', deviceID: '' });
   const [selectedFile, setSelectedFile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeviceLoading, setIsDeviceLoading] = useState(false);
   const [csvFile, setCsvFile] = useState(null);
   const [selectedLocationId, setSelectedLocationId] = useState('');
   const [deviceInputMethod, setDeviceInputMethod] = useState('dropdown');
   const [manualDeviceID, setManualDeviceID] = useState('');
-  const [unlinkedDevices, setUnlinkedDevices] = useState([]);
 
   const { isOpen: isLocationModalOpen, onOpen: onOpenLocationModal, onClose: onCloseLocationModal } = useDisclosure();
   const { isOpen: isDeleteDialogOpen, onOpen: onOpenDeleteDialog, onClose: onCloseDeleteDialog } = useDisclosure();
@@ -80,57 +100,74 @@ function Manage() {
   const cancelRef = useRef();
 
   const fetchLocations = useCallback(async () => {
-    setIsLoading(true);
     try {
       const res = await apiGet('/api/locations?includeClientID=true');
-      if (res.ok) {
-        const data = await res.json();
-        setLocations(data);
+
+      if (!res.ok) {
+        throw new Error('ไม่สามารถดึงข้อมูลสถานที่ได้');
       }
+
+      const data = await res.json();
+      setLocations(data);
     } catch (error) {
-      console.error('Error fetching locations:', error);
+      console.error('Fetch locations error:', error.message);
       toast({
         title: 'ข้อผิดพลาด',
         description: 'ไม่สามารถดึงข้อมูลสถานที่ได้',
         status: 'error',
         duration: 3000,
         isClosable: true,
+        position: 'top',
       });
-    } finally {
-      setIsLoading(false);
     }
   }, [toast]);
 
   const fetchUnlinkedDevices = useCallback(async () => {
-    setIsDeviceLoading(true);
     try {
+      setIsDeviceLoading(true);
+
       const res = await apiGet('/api/devices/unlinked');
-      if (res.ok) {
-        const data = await res.json();
-        setUnlinkedDevices(data);
+
+      if (!res.ok) {
+        throw new Error('ไม่สามารถดึงข้อมูลอุปกรณ์ที่ยังไม่เชื่อมโยงได้');
       }
+
+      const data = await res.json();
+      setUnlinkedDevices(data || []);
     } catch (error) {
-      console.error('Error fetching unlinked devices:', error);
+      console.error('Fetch unlinked devices error:', error.message);
+      toast({
+        title: 'ข้อผิดพลาด',
+        description: 'ไม่สามารถดึงข้อมูลอุปกรณ์ที่ยังไม่เชื่อมโยงได้',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+        position: 'top',
+      });
+      setUnlinkedDevices([]);
     } finally {
       setIsDeviceLoading(false);
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
-    fetchLocations();
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        await fetchLocations();
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
   }, [fetchLocations]);
-
-  useEffect(() => {
-    if (isLocationModalOpen && user.role === 'admin') {
-      fetchUnlinkedDevices();
-    }
-  }, [isLocationModalOpen, user.role, fetchUnlinkedDevices]);
 
   const openAddLocationModal = useCallback(() => {
     setCurrentLocation({ id: null, name: '', coordinates: '', deviceID: '' });
     setSelectedFile(null);
     setDeviceInputMethod('dropdown');
     setManualDeviceID('');
+    setUnlinkedDevices([]);
     onOpenLocationModal();
   }, [onOpenLocationModal]);
 
@@ -144,6 +181,7 @@ function Manage() {
       setDeviceInputMethod('dropdown');
       setManualDeviceID('');
     }
+    setUnlinkedDevices([]);
     onOpenLocationModal();
   }, [onOpenLocationModal]);
 
@@ -154,7 +192,7 @@ function Manage() {
 
   const handleLocationDeleteConfirm = useCallback(async () => {
     if (!locationToDelete) return;
-    setIsSubmitting(true);
+    setIsLoading(true);
 
     try {
       if (locationToDelete.deviceID && user.role === 'admin') {
@@ -164,7 +202,8 @@ function Manage() {
         });
 
         if (!res.ok) {
-           // Ignore unlink error or handle it
+          const errorData = await res.json();
+          throw new Error(errorData.error || 'ไม่สามารถยกเลิกการเชื่อมโยงอุปกรณ์ได้');
         }
       }
 
@@ -174,6 +213,9 @@ function Manage() {
         throw new Error('ไม่สามารถลบสถานที่ได้');
       }
 
+      setLocations((prev) => prev.filter((loc) => loc.id !== locationToDelete.id));
+      await fetchUnlinkedDevices();
+
       toast({
         title: 'สำเร็จ',
         description: 'ลบสถานที่เรียบร้อย',
@@ -182,9 +224,6 @@ function Manage() {
         isClosable: true,
         position: 'top',
       });
-      
-      fetchLocations();
-      fetchUnlinkedDevices();
 
     } catch (error) {
       console.error('Error deleting location:', error.message);
@@ -194,13 +233,14 @@ function Manage() {
         status: 'error',
         duration: 3000,
         isClosable: true,
+        position: 'top',
       });
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
       onCloseDeleteDialog();
       setLocationToDelete(null);
     }
-  }, [locationToDelete, user.role, toast, fetchLocations, fetchUnlinkedDevices, onCloseDeleteDialog]);
+  }, [locationToDelete, user.role, toast, fetchUnlinkedDevices, onCloseDeleteDialog]);
 
   const handleFileChange = useCallback((e) => {
     if (e.target.files && e.target.files[0]) {
@@ -240,6 +280,7 @@ function Manage() {
         status: 'error',
         duration: 3000,
         isClosable: true,
+        position: 'top',
       });
       return null;
     }
@@ -253,11 +294,12 @@ function Manage() {
         status: 'error',
         duration: 3000,
         isClosable: true,
+        position: 'top',
       });
       return;
     }
 
-    setIsSubmitting(true);
+    setIsLoading(true);
 
     try {
       const formData = new FormData();
@@ -281,9 +323,6 @@ function Manage() {
         isClosable: true,
         position: 'top',
       });
-      
-      // No need to refresh locations list for CSV upload, but good for safety
-      // fetchLocations(); 
 
     } catch (error) {
       console.error('CSV Upload error:', error.message);
@@ -293,9 +332,10 @@ function Manage() {
         status: 'error',
         duration: 3000,
         isClosable: true,
+        position: 'top',
       });
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
       onCloseCsvModal();
       setCsvFile(null);
       setSelectedLocationId('');
@@ -350,7 +390,7 @@ function Manage() {
       return;
     }
 
-    setIsSubmitting(true);
+    setIsLoading(true);
     try {
       let updatedLoc;
       const url = currentLocation.id ? `/api/locations/${currentLocation.id}` : '/api/locations';
@@ -365,7 +405,8 @@ function Manage() {
           });
 
           if (!unlinkRes.ok) {
-             // Ignore
+            const errorData = await unlinkRes.json();
+            throw new Error(errorData.error || 'ไม่สามารถยกเลิกการเชื่อมโยงอุปกรณ์เดิมได้');
           }
         }
       }
@@ -389,18 +430,23 @@ function Manage() {
       updatedLoc = await locationRes.json();
 
       if (selectedFile) {
-        await uploadLocationImage(updatedLoc.id);
+        const imageUrl = await uploadLocationImage(updatedLoc.id);
+        if (imageUrl) updatedLoc = { ...updatedLoc, imageUrl };
       }
 
-      toast({ title: 'สำเร็จ', description: `สถานที่ ${currentLocation.id ? 'แก้ไข' : 'เพิ่ม'} เรียบร้อย`, status: 'success', duration: 1000 });
-      
-      fetchLocations();
-      fetchUnlinkedDevices();
+      await fetchUnlinkedDevices();
 
+      setLocations((prev) =>
+        currentLocation.id
+          ? prev.map((loc) => (loc.id === updatedLoc.id ? updatedLoc : loc))
+          : [...prev, updatedLoc]
+      );
+
+      toast({ title: 'สำเร็จ', description: `สถานที่ ${currentLocation.id ? 'แก้ไข' : 'เพิ่ม'} เรียบร้อย`, status: 'success', duration: 1000 });
     } catch (error) {
       toast({ title: 'ข้อผิดพลาด', description: error.message || 'ไม่สามารถบันทึกสถานที่ได้', status: 'error', duration: 2000 });
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
       onCloseLocationModal();
       setCurrentLocation({ id: null, name: '', coordinates: '', deviceID: '' });
       setDeviceInputMethod('dropdown');
@@ -416,11 +462,10 @@ function Manage() {
     locations,
     unlinkedDevices,
     user.role,
-    fetchLocations,
     fetchUnlinkedDevices,
     manualDeviceID,
     deviceInputMethod,
-    isFormComplete
+    isFormComplete,
   ]);
 
   if (isLoading) {
@@ -621,20 +666,31 @@ function Manage() {
               />
             </FormControl>
 
-            {/* ✅ แผนที่สำหรับเลือกพิกัด + ค้นหา */}
+            {/* ✅ แผนที่สำหรับเลือกพิกัด */}
             <FormControl mb={4} isRequired>
               <FormLabel fontSize="sm" color="gray.600">เลือกพิกัดบนแผนที่</FormLabel>
               <Box height="300px" width="100%" border="1px solid #CBD5E0" borderRadius="md" overflow="hidden">
-                <Suspense fallback={
-                    <Center h="100%" bg="gray.100">
-                        <Spinner color="blue.500" />
-                    </Center>
-                }>
-                    <MapView 
-                        currentLocation={currentLocation}
-                        setCurrentLocation={setCurrentLocation}
+                <MapContainer
+                  center={currentLocation.coordinates
+                    ? currentLocation.coordinates.split(',').map(Number)
+                    : [13.7563, 100.5018]} // Default Bangkok
+                  zoom={13}
+                  style={{ height: '100%', width: '100%' }}
+                >
+                  <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution='© <a href=\"http://osm.org/copyright\">OpenStreetMap</a> contributors'
+                  />
+                  <LocationSelector
+                    currentLocation={currentLocation}
+                    setCurrentLocation={setCurrentLocation}
+                  />
+                  {currentLocation.coordinates && (
+                    <Marker
+                      position={currentLocation.coordinates.split(',').map(Number)}
                     />
-                </Suspense>
+                  )}
+                </MapContainer>
               </Box>
               {currentLocation.coordinates && (
                 <Text fontSize="sm" mt={2} color="gray.500">
@@ -692,7 +748,7 @@ function Manage() {
                       <IconButton
                         colorScheme="blue"
                         size="md"
-                        onClick={() => fetchUnlinkedDevices()}
+                        onClick={fetchUnlinkedDevices}
                         aria-label="Refresh DeviceID List"
                         title="รีเฟรชรายการ DeviceID"
                         isDisabled={isDeviceLoading || isLoading}
@@ -744,13 +800,13 @@ function Manage() {
               colorScheme="teal"
               size="md"
               onClick={handleLocationSave}
-              isLoading={isSubmitting}
-              isDisabled={!isFormComplete() || isSubmitting}
+              isLoading={isLoading}
+              isDisabled={!isFormComplete()}
               mr={3}
             >
               บันทึก
             </Button>
-            <Button variant="outline" size="md" onClick={onCloseLocationModal} isDisabled={isSubmitting}>
+            <Button variant="outline" size="md" onClick={onCloseLocationModal} isDisabled={isLoading}>
               ยกเลิก
             </Button>
           </ModalFooter>
@@ -800,46 +856,32 @@ function Manage() {
               />
             </FormControl>
           </ModalBody>
-
           <ModalFooter>
-            <Button
-              colorScheme="blue"
-              onClick={uploadCsvData}
-              isLoading={isSubmitting}
-              isDisabled={isSubmitting || !csvFile || !selectedLocationId}
-              mr={3}
-            >
+            <Button colorScheme="blue" size="md" onClick={uploadCsvData} isLoading={isLoading} mr={3}>
               อัปโหลด
             </Button>
-            <Button variant="ghost" onClick={onCloseCsvModal}>
+            <Button variant="outline" size="md" onClick={onCloseCsvModal} isDisabled={isLoading}>
               ยกเลิก
             </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog
-        isOpen={isDeleteDialogOpen}
-        leastDestructiveRef={cancelRef}
-        onClose={onCloseDeleteDialog}
-      >
+      {/* Modal ยืนยันการลบ */}
+      <AlertDialog isOpen={isDeleteDialogOpen} leastDestructiveRef={cancelRef} onClose={onCloseDeleteDialog}>
         <AlertDialogOverlay>
-          <AlertDialogContent>
-            <AlertDialogHeader fontSize="lg" fontWeight="bold">
+          <AlertDialogContent borderRadius="lg" bg="white">
+            <AlertDialogHeader fontSize="lg" fontWeight="bold" color="gray.800">
               ยืนยันการลบ
             </AlertDialogHeader>
-
-            <AlertDialogBody>
-              คุณต้องการลบสถานที่ "{locationToDelete?.name}" ใช่หรือไม่?
-              การกระทำนี้ไม่สามารถย้อนกลับได้
+            <AlertDialogBody fontSize="md" color="gray.600">
+              คุณต้องการลบสถานที่นี้หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้
             </AlertDialogBody>
-
             <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={onCloseDeleteDialog}>
+              <Button ref={cancelRef} size="md" onClick={onCloseDeleteDialog} isDisabled={isLoading}>
                 ยกเลิก
               </Button>
-              <Button colorScheme="red" onClick={handleLocationDeleteConfirm} ml={3} isLoading={isSubmitting}>
+              <Button colorScheme="red" size="md" onClick={handleLocationDeleteConfirm} ml={3} isLoading={isLoading}>
                 ลบ
               </Button>
             </AlertDialogFooter>
