@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { apiGet } from '../../utils/api';
 import {
   VStack,
@@ -24,14 +24,15 @@ import {
 } from '@chakra-ui/react';
 import { SearchIcon, DownloadIcon, ArrowBackIcon } from '@chakra-ui/icons';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query'; // Import React Query
-import { formatDateTime } from '../../utils/date'; // Import Date Utility
+import { useAuth } from '../../auth/AuthContext';
 
 function Report() {
   const navigate = useNavigate();
   const toast = useToast();
+  const { user } = useAuth();
+  const token = user?.token || '';
 
-  // ---------------- State for Search Params ----------------
+  const [locations, setLocations] = useState([]);
   const [searchParams, setSearchParams] = useState({
     locationId: '',
     startTime: '',
@@ -39,11 +40,8 @@ function Report() {
     startDate: '',
     endDate: '',
   });
-
-  // State to trigger search (only fetch when this changes)
-  const [triggerSearch, setTriggerSearch] = useState(false);
-
-  // ---------------- State for Pagination & Sorting ----------------
+  const [reportData, setReportData] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [sortConfig, setSortConfig] = useState({
@@ -51,64 +49,7 @@ function Report() {
     direction: 'desc',
   });
 
-  // ======================== React Query: Fetch Locations ========================
-  const { data: locations = [] } = useQuery({
-    queryKey: ['locations'],
-    queryFn: async () => {
-      const res = await apiGet('/api/locations');
-      if (!res.ok) throw new Error('Failed to fetch locations');
-      return res.json();
-    },
-    staleTime: 1000 * 60 * 10, // Cache for 10 minutes
-  });
-
-  // ======================== React Query: Fetch Reports ========================
-  // Fetch only when searchParams.locationId is available and user clicked search
-  const { data: reportData = [], isLoading: isLoadingReports, isFetching } = useQuery({
-    queryKey: ['reportData', searchParams.locationId],
-    queryFn: async () => {
-        if (!searchParams.locationId) return [];
-        const res = await apiGet(`/api/locations/${searchParams.locationId}/logs`);
-        if (!res.ok) throw new Error('Failed to fetch history data');
-        const data = await res.json();
-        
-        const foundLoc = locations.find((loc) => loc.id === parseInt(searchParams.locationId)) || locations.find((loc) => loc.id === searchParams.locationId);
-        const locName = foundLoc?.name || '-';
-  
-        return data.map((item) => ({
-          ...item,
-          locationName: locName,
-        }));
-    },
-    enabled: !!searchParams.locationId && triggerSearch, // Only fetch if location is selected and search triggered
-    staleTime: 1000 * 60 * 2,
-  });
-
-  // Reset trigger after fetch initiated (optional pattern, or just rely on queryKey)
-  // Here relying on button click to set a state that included in queryKey or enabled is tricky.
-  // Better pattern: Button click sets the *query parameters* that are used in queryKey.
-  // BUT the current UI has inputs. Let's make "Search" button update a "submittedSearchParams" state.
-
-  const [submittedLocationId, setSubmittedLocationId] = useState(null);
-
-  const fetchHistory = () => {
-      if (!searchParams.locationId) {
-          toast({
-              title: 'Invalid Selection',
-              description: 'Please select a location.',
-              status: 'warning',
-              duration: 3000,
-              isClosable: true,
-            });
-            return;
-      }
-      // Trigger fetch by updating key/enabled
-      setTriggerSearch(true);
-      setSubmittedLocationId(searchParams.locationId);
-      setCurrentPage(1);
-  };
-
-  const sortHandler = (columnKey) => {
+  const handleSort = (columnKey) => {
     if (sortConfig.column === columnKey) {
       setSortConfig((prev) => ({
         column: columnKey,
@@ -116,6 +57,32 @@ function Report() {
       }));
     } else {
       setSortConfig({ column: columnKey, direction: 'asc' });
+    }
+  };
+
+  useEffect(() => {
+    fetchLocations();
+  }, []);
+
+  const fetchLocations = async () => {
+    try {
+      setIsLoading(true);
+      const res = await apiGet('/api/locations');
+    
+      if (!res.ok) throw new Error('Failed to fetch locations');
+      const data = await res.json();
+      setLocations(data);
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load locations.',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -165,17 +132,58 @@ function Report() {
     document.body.removeChild(link);
   };
 
+  const fetchHistory = async () => {
+    if (!searchParams.locationId) {
+      toast({
+        title: 'Invalid Selection',
+        description: 'Please select a location.',
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const res = await apiGet(`/api/locations/${searchParams.locationId}/logs`);
+
+      if (!res.ok) throw new Error('Failed to fetch history data');
+      const data = await res.json();
+
+      const foundLoc = locations.find((loc) => loc.id === searchParams.locationId);
+      const locName = foundLoc?.name || '-';
+
+      const enrichedData = data.map((item) => ({
+        ...item,
+        locationName: locName,
+      }));
+
+      setReportData(enrichedData);
+      setCurrentPage(1);
+    } catch (error) {
+      console.error('Error fetching history:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch report data.',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setSearchParams((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Filter Data Client-side (based on date inputs)
   const filteredData = useMemo(() => {
     if (!reportData.length) return [];
 
     const { startDate, startTime, endDate, endTime } = searchParams;
-    // Note: We use searchParams here for filtering, so filtering updates immediately as user types date, even if they haven't re-fetched (which is fine for client-side filter)
     const startDateTime = startDate ? new Date(`${startDate}T${startTime || '00:00'}`) : null;
     const endDateTime = endDate ? new Date(`${endDate}T${endTime || '23:59'}`) : null;
 
@@ -340,7 +348,7 @@ function Report() {
                 w={{ base: 'full', md: '50%' }}
                 size={{ base: 'sm', md: 'md' }}
                 onClick={fetchHistory}
-                isLoading={isLoadingReports}
+                isLoading={isLoading}
               >
                 Search
               </Button>
@@ -360,7 +368,7 @@ function Report() {
       </Card>
 
       {/* Data Table or Skeleton */}
-      {isLoadingReports ? (
+      {isLoading ? (
         <VStack spacing={4} py={4}>
           {/* Table Header Skeleton */}
           <TableContainer overflowX="auto">
@@ -406,32 +414,32 @@ function Report() {
             <Table variant="simple" size={{ base: 'sm', md: 'md' }}>
               <Thead>
                 <Tr>
-                  <Th onClick={() => sortHandler('locationName')} cursor="pointer">
+                  <Th onClick={() => handleSort('locationName')} cursor="pointer">
                     Location
                     {sortConfig.column === 'locationName' &&
                       (sortConfig.direction === 'asc' ? ' ▲' : ' ▼')}
                   </Th>
-                  <Th onClick={() => sortHandler('ph')} cursor="pointer">
+                  <Th onClick={() => handleSort('ph')} cursor="pointer">
                     pH
                     {sortConfig.column === 'ph' &&
                       (sortConfig.direction === 'asc' ? ' ▲' : ' ▼')}
                   </Th>
-                  <Th onClick={() => sortHandler('tds')} cursor="pointer">
+                  <Th onClick={() => handleSort('tds')} cursor="pointer">
                     TDS/EC
                     {sortConfig.column === 'tds' &&
                       (sortConfig.direction === 'asc' ? ' ▲' : ' ▼')}
                   </Th>
-                  <Th onClick={() => sortHandler('temperature')} cursor="pointer">
+                  <Th onClick={() => handleSort('temperature')} cursor="pointer">
                     Temp
                     {sortConfig.column === 'temperature' &&
                       (sortConfig.direction === 'asc' ? ' ▲' : ' ▼')}
                   </Th>
-                  <Th onClick={() => sortHandler('turbidity')} cursor="pointer">
+                  <Th onClick={() => handleSort('turbidity')} cursor="pointer">
                     Turbidity
                     {sortConfig.column === 'turbidity' &&
                       (sortConfig.direction === 'asc' ? ' ▲' : ' ▼')}
                   </Th>
-                  <Th onClick={() => sortHandler('timestamp')} cursor="pointer">
+                  <Th onClick={() => handleSort('timestamp')} cursor="pointer">
                     Date-Time
                     {sortConfig.column === 'timestamp' &&
                       (sortConfig.direction === 'asc' ? ' ▲' : ' ▼')}
@@ -441,6 +449,10 @@ function Report() {
               <Tbody>
                 {paginatedData.length ? (
                   paginatedData.map((item) => {
+                    const d = new Date(item.timestamp);
+                    const dateTime = `${d.toLocaleDateString('th-TH')} ${d.toLocaleTimeString(
+                      'th-TH'
+                    )}`;
                     return (
                       <Tr key={item.id}>
                         <Td>{item.locationName || '-'}</Td>
@@ -448,7 +460,7 @@ function Report() {
                         <Td>{item.tds ?? '-'}</Td>
                         <Td>{item.temperature ?? '-'}</Td>
                         <Td>{item.turbidity ?? '-'}</Td>
-                        <Td whiteSpace="nowrap">{formatDateTime(item.timestamp)}</Td>
+                        <Td whiteSpace="nowrap">{dateTime}</Td>
                       </Tr>
                     );
                   })
