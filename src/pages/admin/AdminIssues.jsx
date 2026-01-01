@@ -4,7 +4,6 @@ import {
   Box,
   Heading,
   Text,
-  Spinner,
   Center,
   Flex,
   Stat,
@@ -27,16 +26,8 @@ import {
   HStack,
   Input,
   Select,
-  AlertDialog,
-  AlertDialogOverlay,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogBody,
-  AlertDialogFooter,
   useColorModeValue,
   useBreakpointValue,
-  Skeleton,
-  // เปลี่ยนการ import Image เป็น Image as ChakraImage เพื่อหลีกเลี่ยงปัญหาชื่อซ้อนกับ global Image
   Image as ChakraImage,
 } from '@chakra-ui/react';
 import {
@@ -50,86 +41,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../auth/AuthContext';
 import { motion } from 'framer-motion';
 
+// Reusable Components
+import { ConfirmDialog, AdminIssuesSkeleton } from '../../components/ui';
+
 const MotionBox = motion(Box);
 
-// Skeleton Loading Component สำหรับหน้าจอ AdminIssues
-function SkeletonLoading() {
-  return (
-    <Box maxW="1200px" mx="auto" p={{ base: 3, md: 6 }} bg="gray.50" minH="100vh">
-      {/* Header Skeleton */}
-      <Flex align="center" justify="space-between" mb={4}>
-        <Flex align="center" flex="1">
-          <Skeleton height="40px" width="40px" borderRadius="md" mr={2} />
-          <Skeleton height="32px" width="300px" />
-        </Flex>
-      </Flex>
-      {/* Stat Cards Skeleton */}
-      <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4} mb={6}>
-        {Array(2)
-          .fill()
-          .map((_, index) => (
-            <Box key={index} p={4} bg="white" borderRadius="lg" boxShadow="sm">
-              <Skeleton height="20px" width="150px" mb={2} />
-              <Skeleton height="40px" width="80px" />
-            </Box>
-          ))}
-      </SimpleGrid>
-      {/* Layout 2 คอลัมน์ Skeleton */}
-      <Flex direction={{ base: 'column', md: 'row' }} gap={4}>
-        {/* Sidebar Skeleton */}
-        <Box
-          width={{ base: '100%', md: '300px' }}
-          bg="white"
-          p={4}
-          borderRadius="lg"
-          boxShadow="sm"
-          borderRight="1px solid"
-          borderColor="gray.200"
-        >
-          <Heading as="h2" size="sm" mb={3} color="blue.600">
-            รายชื่อสถานที่
-          </Heading>
-          <VStack align="stretch" spacing={3}>
-            {Array(4)
-              .fill()
-              .map((_, index) => (
-                <Box key={index} p={3} bg="gray.50" borderRadius="md" boxShadow="sm">
-                  <Skeleton height="20px" width="150px" />
-                </Box>
-              ))}
-          </VStack>
-          <Button mt={4} leftIcon={<RepeatIcon />} colorScheme="blue" size="sm">
-            รีเฟรชทั้งหมด
-          </Button>
-        </Box>
-        {/* Main Content Skeleton */}
-        <Box flex="1" bg="white" p={4} borderRadius="lg" boxShadow="sm">
-          <Flex align="center" justify="space-between" mb={4}>
-            <Skeleton height="20px" width="200px" />
-            <Skeleton height="32px" width="80px" />
-          </Flex>
-          <Flex mb={4} gap={3}>
-            <Skeleton height="40px" width={{ base: '100%', md: '400px' }} borderRadius="md" />
-            <Skeleton height="40px" width={{ base: '100%', md: '200px' }} borderRadius="md" />
-          </Flex>
-          {Array(3)
-            .fill()
-            .map((_, index) => (
-              <Box key={index} p={3} bg="white" borderRadius="md" boxShadow="sm" mb={3}>
-                <Flex direction={{ base: 'column', md: 'row' }} gap={3} align="center">
-                  <Skeleton height={{ base: '80px', md: '100px' }} width={{ base: '80px', md: '120px' }} borderRadius="md" />
-                  <Box flex="1">
-                    <Skeleton height="20px" width="70%" mb={2} />
-                    <Skeleton height="16px" width="90%" />
-                  </Box>
-                </Flex>
-              </Box>
-            ))}
-        </Box>
-      </Flex>
-    </Box>
-  );
-}
+
 
 // ฟังก์ชันดึงข้อมูลสถานที่และ Issue
 async function fetchAllData({ queryKey }) {
@@ -180,7 +97,6 @@ function AdminIssues() {
   const buttonSize = useBreakpointValue({ base: 'sm', md: 'md' });
   const statNumberSize = useBreakpointValue({ base: 'xl', md: '2xl' });
 
-  // Modal ควบคุมสำหรับภาพ รายละเอียด และ confirm dialog
   const { isOpen: isImageOpen, onOpen: onImageOpen, onClose: onImageClose } = useDisclosure();
   const { isOpen: isDetailOpen, onOpen: onDetailOpen, onClose: onDetailClose } = useDisclosure();
   const { isOpen: isConfirmOpen, onOpen: onConfirmOpen, onClose: onConfirmClose } = useDisclosure();
@@ -189,7 +105,6 @@ function AdminIssues() {
   const [confirmIssue, setConfirmIssue] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const cancelRef = React.useRef();
 
   // State สำหรับการเลือกสถานที่ใน Sidebar
   const [selectedLocationId, setSelectedLocationId] = useState(null);
@@ -359,7 +274,7 @@ function AdminIssues() {
   };
 
   if (isLoading) {
-    return <SkeletonLoading />;
+    return <AdminIssuesSkeleton />;
   }
   if (error) {
     return (
@@ -713,26 +628,16 @@ function AdminIssues() {
         </ModalContent>
       </Modal>
 
-      <AlertDialog isOpen={isConfirmOpen} leastDestructiveRef={cancelRef} onClose={onConfirmClose}>
-        <AlertDialogOverlay>
-          <AlertDialogContent borderRadius="lg" bg={bgColor}>
-            <AlertDialogHeader fontSize={textSize} fontWeight="bold" color="gray.800">
-              ยืนยันการดำเนินการ
-            </AlertDialogHeader>
-            <AlertDialogBody color="gray.600" fontSize={textSize}>
-              คุณต้องการตั้งสถานะปัญหานี้เป็น "สำเร็จ" หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้
-            </AlertDialogBody>
-            <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={onConfirmClose} size={buttonSize}>
-                ยกเลิก
-              </Button>
-              <Button colorScheme="blue" onClick={confirmIssueDone} ml={3} size={buttonSize}>
-                ยืนยัน
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialogOverlay>
-      </AlertDialog>
+      <ConfirmDialog
+        isOpen={isConfirmOpen}
+        onClose={onConfirmClose}
+        onConfirm={confirmIssueDone}
+        title="ยืนยันการดำเนินการ"
+        message='คุณต้องการตั้งสถานะปัญหานี้เป็น "สำเร็จ" หรือไม่? การดำเนินการนี้ไม่สามารถย้อนกลับได้'
+        confirmText="ยืนยัน"
+        cancelText="ยกเลิก"
+        isLoading={deleteIssueMutation.isLoading}
+      />
     </Box>
   );
 }
