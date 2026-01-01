@@ -399,11 +399,24 @@ function Manage() {
       if (selectedFile) {
         // This is a separate call, so if it fails, the location is still saved.
         // Ideally we should alert but proceed.
-        await uploadLocationImage(updatedLoc.id);
-        // if (imageUrl) updatedLoc = { ...updatedLoc, imageUrl }; // Not needed as we invalidate queries
+        const imageUrl = await uploadLocationImage(updatedLoc.id);
+        if (imageUrl) updatedLoc = { ...updatedLoc, imageUrl }; // Update local object with new image URL
       }
 
       await refetchUnlinkedDevices();
+
+      // Manually update cache for instant feedback
+      queryClient.setQueryData(['locations'], (oldLocations) => {
+        if (!oldLocations) return [updatedLoc];
+        if (currentLocation.id) {
+          // Update existing location
+          return oldLocations.map((loc) => (loc.id === updatedLoc.id ? updatedLoc : loc));
+        } else {
+          // Add new location
+          return [...oldLocations, updatedLoc];
+        }
+      });
+
       await queryClient.invalidateQueries({ queryKey: ['locations'] });
 
       /* 
