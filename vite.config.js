@@ -23,11 +23,38 @@ export default defineConfig({
         secure: false,
       },
     },
-
   },
   build: {
     outDir: 'dist',
     sourcemap: false,
+    // Performance optimizations
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+      },
+    },
+    // Chunk splitting for better caching
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vendor chunks
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-chakra': ['@chakra-ui/react', '@chakra-ui/icons', '@emotion/react', '@emotion/styled'],
+          'vendor-query': ['@tanstack/react-query'],
+          'vendor-charts': ['chart.js', 'react-chartjs-2'],
+          'vendor-maps': ['leaflet', 'react-leaflet'],
+          'vendor-motion': ['framer-motion'],
+        },
+      },
+    },
+    // Increase chunk size warning limit
+    chunkSizeWarningLimit: 800,
+  },
+  // Optimize dependencies
+  optimizeDeps: {
+    include: ['react', 'react-dom', '@chakra-ui/react', '@tanstack/react-query'],
   },
 });
 

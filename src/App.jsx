@@ -28,8 +28,18 @@ const UserLogs = lazy(() => import('./pages/admin/UserLogs'));
 const Logout = lazy(() => import('./auth/Logout'));
 const LabStaffLogin = lazy(() => import('./auth/LabStaffLogin'));
 
-// สร้าง QueryClient instance สำหรับ React Query
-const queryClient = new QueryClient();
+// สร้าง QueryClient instance สำหรับ React Query พร้อม optimized config
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 2, // Data stays fresh for 2 minutes
+      gcTime: 1000 * 60 * 10, // Cache garbage collected after 10 minutes
+      retry: 2, // Retry failed requests twice
+      refetchOnWindowFocus: false, // Don't refetch on window focus
+      refetchOnReconnect: true, // Refetch when reconnecting
+    },
+  },
+});
 
 // Component fallback เป็น Spinner
 function LoadingSpinner() {
