@@ -49,7 +49,6 @@ import { ArrowBackIcon, EditIcon, DeleteIcon, RepeatIcon } from '@chakra-ui/icon
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 // Lazy load MapView (which contains Leaflet and Search)
 const MapView = lazy(() => import('../../components/ui/MapView'));
@@ -60,18 +59,17 @@ function Manage() {
   const isMobile = useBreakpointValue({ base: true, md: false });
   const { user } = useAuth();
   const token = user?.token || '';
-  const queryClient = useQueryClient();
 
-  // const [locations, setLocations] = useState([]); // Managed by React Query now
+  const [locations, setLocations] = useState([]);
   const [currentLocation, setCurrentLocation] = useState({ id: null, name: '', coordinates: '', deviceID: '' });
   const [selectedFile, setSelectedFile] = useState(null);
-  // const [isLoading, setIsLoading] = useState(true); // Managed by React Query
-  const [isSubmitting, setIsSubmitting] = useState(false); // For mutation loading state
-  const [isDeviceLoading, setIsDeviceLoading] = useState(false); // Can be replaced by useQuery isLoading
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [csvFile, setCsvFile] = useState(null);
   const [selectedLocationId, setSelectedLocationId] = useState('');
   const [deviceInputMethod, setDeviceInputMethod] = useState('dropdown');
   const [manualDeviceID, setManualDeviceID] = useState('');
+  const [unlinkedDevices, setUnlinkedDevices] = useState([]);
 
   const { isOpen: isLocationModalOpen, onOpen: onOpenLocationModal, onClose: onCloseLocationModal } = useDisclosure();
   const { isOpen: isDeleteDialogOpen, onOpen: onOpenDeleteDialog, onClose: onCloseDeleteDialog } = useDisclosure();
@@ -80,55 +78,58 @@ function Manage() {
   const [locationToDelete, setLocationToDelete] = useState(null);
   const cancelRef = useRef();
 
-  // ================= React Query: Locations =================
-  const { data: locations = [], isLoading, isError } = useQuery({
-    queryKey: ['locations'],
-    queryFn: async () => {
+  const fetchLocations = useCallback(async () => {
+    setIsLoading(true);
+    try {
       const res = await apiGet('/api/locations?includeClientID=true');
-      if (!res.ok) throw new Error('ไม่สามารถดึงข้อมูลสถานที่ได้');
-      return res.json();
-    },
-     onError: (err) => {
-        console.error('Fetch locations error:', err.message);
-        toast({
-            title: 'ข้อผิดพลาด',
-            description: 'ไม่สามารถดึงข้อมูลสถานที่ได้',
-            status: 'error',
-            duration: 3000,
-            isClosable: true,
-            position: 'top',
-        });
+      if (res.ok) {
+        const data = await res.json();
+        setLocations(data);
+      }
+    } catch (error) {
+      console.error('Error fetching locations:', error);
+      toast({
+        title: 'ข้อผิดพลาด',
+        description: 'ไม่สามารถดึงข้อมูลสถานที่ได้',
+        status: 'error',
+        duration: 3000,
+        isClosable: true,
+      });
+    } finally {
+      setIsLoading(false);
     }
-  });
+  }, [toast]);
 
-  // ================= React Query: Unlinked Devices =================
-    const { data: unlinkedDevices = [], refetch: refetchUnlinkedDevices, isFetching: isUnlinkedFetching } = useQuery({
-        queryKey: ['unlinkedDevices'],
-        queryFn: async () => {
-            const res = await apiGet('/api/devices/unlinked');
-            if (!res.ok) throw new Error('ไม่สามารถดึงข้อมูลอุปกรณ์ได้');
-            return res.json();
-        },
-        enabled: isLocationModalOpen && user.role === 'admin', // Fetch only when needed
-         onError: (err) => {
-             console.error('Fetch unlinked devices error:', err.message);
-            toast({
-                title: 'ข้อผิดพลาด',
-                description: 'ไม่สามารถดึงข้อมูลอุปกรณ์ได้',
-                status: 'error',
-                duration: 3000,
-                isClosable: true,
-                position: 'top',
-            });
-         }
-    });
+  const fetchUnlinkedDevices = useCallback(async () => {
+    setIsDeviceLoading(true);
+    try {
+      const res = await apiGet('/api/devices/unlinked');
+      if (res.ok) {
+        const data = await res.json();
+        setUnlinkedDevices(data);
+      }
+    } catch (error) {
+      console.error('Error fetching unlinked devices:', error);
+    } finally {
+      setIsDeviceLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLocations();
+  }, [fetchLocations]);
+
+  useEffect(() => {
+    if (isLocationModalOpen && user.role === 'admin') {
+      fetchUnlinkedDevices();
+    }
+  }, [isLocationModalOpen, user.role, fetchUnlinkedDevices]);
 
   const openAddLocationModal = useCallback(() => {
     setCurrentLocation({ id: null, name: '', coordinates: '', deviceID: '' });
     setSelectedFile(null);
     setDeviceInputMethod('dropdown');
     setManualDeviceID('');
-    // setUnlinkedDevices([]); // Handled by React Query
     onOpenLocationModal();
   }, [onOpenLocationModal]);
 
@@ -142,7 +143,6 @@ function Manage() {
       setDeviceInputMethod('dropdown');
       setManualDeviceID('');
     }
-    // setUnlinkedDevices([]); // Handled by React Query
     onOpenLocationModal();
   }, [onOpenLocationModal]);
 
@@ -163,8 +163,7 @@ function Manage() {
         });
 
         if (!res.ok) {
-          const errorData = await res.json();
-          throw new Error(errorData.error || 'ไม่สามารถยกเลิกการเชื่อมโยงอุปกรณ์ได้');
+           // Ignore unlink error or handle it
         }
       }
 
@@ -174,15 +173,6 @@ function Manage() {
         throw new Error('ไม่สามารถลบสถานที่ได้');
       }
 
-      // Manually update cache for instant feedback (Optimistic-like update)
-      queryClient.setQueryData(['locations'], (oldLocations) => {
-        if (!oldLocations) return [];
-        return oldLocations.filter((loc) => loc.id !== locationToDelete.id);
-      });
-
-      await queryClient.invalidateQueries({ queryKey: ['locations'] });
-      await refetchUnlinkedDevices();
-
       toast({
         title: 'สำเร็จ',
         description: 'ลบสถานที่เรียบร้อย',
@@ -191,6 +181,9 @@ function Manage() {
         isClosable: true,
         position: 'top',
       });
+      
+      fetchLocations();
+      fetchUnlinkedDevices();
 
     } catch (error) {
       console.error('Error deleting location:', error.message);
@@ -200,14 +193,13 @@ function Manage() {
         status: 'error',
         duration: 3000,
         isClosable: true,
-        position: 'top',
       });
     } finally {
       setIsSubmitting(false);
       onCloseDeleteDialog();
       setLocationToDelete(null);
     }
-  }, [locationToDelete, user.role, toast, refetchUnlinkedDevices, onCloseDeleteDialog, queryClient]);
+  }, [locationToDelete, user.role, toast, fetchLocations, fetchUnlinkedDevices, onCloseDeleteDialog]);
 
   const handleFileChange = useCallback((e) => {
     if (e.target.files && e.target.files[0]) {
@@ -398,24 +390,14 @@ function Manage() {
 
       if (selectedFile) {
         // This is a separate call, so if it fails, the location is still saved.
-        // Ideally we should alert but proceed.
         await uploadLocationImage(updatedLoc.id);
-        // if (imageUrl) updatedLoc = { ...updatedLoc, imageUrl }; // Not needed as we invalidate queries
       }
 
-      await refetchUnlinkedDevices();
-      await queryClient.invalidateQueries({ queryKey: ['locations'] });
-
-      /* 
-      // Removed manual state update
-      setLocations((prev) =>
-        currentLocation.id
-          ? prev.map((loc) => (loc.id === updatedLoc.id ? updatedLoc : loc))
-          : [...prev, updatedLoc]
-      ); 
-      */
-
       toast({ title: 'สำเร็จ', description: `สถานที่ ${currentLocation.id ? 'แก้ไข' : 'เพิ่ม'} เรียบร้อย`, status: 'success', duration: 1000 });
+      
+      fetchLocations();
+      fetchUnlinkedDevices();
+
     } catch (error) {
       toast({ title: 'ข้อผิดพลาด', description: error.message || 'ไม่สามารถบันทึกสถานที่ได้', status: 'error', duration: 2000 });
     } finally {
@@ -435,11 +417,11 @@ function Manage() {
     locations,
     unlinkedDevices,
     user.role,
-    refetchUnlinkedDevices,
+    fetchLocations,
+    fetchUnlinkedDevices,
     manualDeviceID,
     deviceInputMethod,
-    isFormComplete,
-    queryClient
+    isFormComplete
   ]);
 
   if (isLoading) {
@@ -711,14 +693,14 @@ function Manage() {
                       <IconButton
                         colorScheme="blue"
                         size="md"
-                        onClick={() => refetchUnlinkedDevices()}
+                        onClick={() => fetchUnlinkedDevices()}
                         aria-label="Refresh DeviceID List"
                         title="รีเฟรชรายการ DeviceID"
-                        isDisabled={isUnlinkedFetching || isLoading}
+                        isDisabled={isDeviceLoading || isLoading}
                       >
                         <motion.div
-                          animate={isUnlinkedFetching ? { rotate: 360 } : { rotate: 0 }}
-                          transition={isUnlinkedFetching ? { repeat: Infinity, duration: 1, ease: 'linear' } : {}}
+                          animate={isDeviceLoading ? { rotate: 360 } : { rotate: 0 }}
+                          transition={isDeviceLoading ? { repeat: Infinity, duration: 1, ease: 'linear' } : {}}
                         >
                           <RepeatIcon />
                         </motion.div>
