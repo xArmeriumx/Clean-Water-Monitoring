@@ -20,10 +20,10 @@ function LocationSelector({ currentLocation, setCurrentLocation }) {
   useMapEvents({
     click(e) {
       const { lat, lng } = e.latlng;
-      setCurrentLocation({
-        ...currentLocation,
+      setCurrentLocation((prev) => ({
+        ...prev,
         coordinates: `${lat.toFixed(6)},${lng.toFixed(6)}`,
-      });
+      }));
       map.flyTo([lat, lng], map.getZoom());
     },
   });
@@ -51,22 +51,24 @@ function SearchField({ setCurrentLocation, currentLocation }) {
     map.addControl(searchControl);
 
     // Event listener when a user selects a result
-    map.on('geosearch/showlocation', (result) => {
+    const onShowLocation = (result) => {
       if (result.location) {
         // Extract lat/lng
         const { y: lat, x: lng } = result.location;
-        setCurrentLocation({
-            ...currentLocation,
+        setCurrentLocation((prev) => ({
+             ...prev,
              coordinates: `${parseFloat(lat).toFixed(6)},${parseFloat(lng).toFixed(6)}`
-        });
+        }));
       }
-    });
+    };
+
+    map.on('geosearch/showlocation', onShowLocation);
 
     return () => {
       map.removeControl(searchControl);
-      map.off('geosearch/showlocation');
+      map.off('geosearch/showlocation', onShowLocation);
     };
-  }, [map, setCurrentLocation, currentLocation]);
+  }, [map, setCurrentLocation]); // Removed currentLocation dependency
 
   return null;
 }
