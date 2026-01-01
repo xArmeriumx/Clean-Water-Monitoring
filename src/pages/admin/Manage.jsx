@@ -85,7 +85,8 @@ function Manage() {
   const [unlinkedDevices, setUnlinkedDevices] = useState([]);
   const [currentLocation, setCurrentLocation] = useState({ id: null, name: '', coordinates: '', deviceID: '' });
   const [selectedFile, setSelectedFile] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isPageLoading, setIsPageLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeviceLoading, setIsDeviceLoading] = useState(false);
   const [csvFile, setCsvFile] = useState(null);
   const [selectedLocationId, setSelectedLocationId] = useState('');
@@ -152,11 +153,11 @@ function Manage() {
 
   useEffect(() => {
     const loadData = async () => {
-      setIsLoading(true);
+      setIsPageLoading(true);
       try {
         await fetchLocations();
       } finally {
-        setIsLoading(false);
+        setIsPageLoading(false);
       }
     };
     loadData();
@@ -192,7 +193,7 @@ function Manage() {
 
   const handleLocationDeleteConfirm = useCallback(async () => {
     if (!locationToDelete) return;
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     try {
       if (locationToDelete.deviceID && user.role === 'admin') {
@@ -236,7 +237,7 @@ function Manage() {
         position: 'top',
       });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
       onCloseDeleteDialog();
       setLocationToDelete(null);
     }
@@ -299,7 +300,7 @@ function Manage() {
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     try {
       const formData = new FormData();
@@ -335,7 +336,7 @@ function Manage() {
         position: 'top',
       });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
       onCloseCsvModal();
       setCsvFile(null);
       setSelectedLocationId('');
@@ -390,7 +391,7 @@ function Manage() {
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
     try {
       let updatedLoc;
       const url = currentLocation.id ? `/api/locations/${currentLocation.id}` : '/api/locations';
@@ -446,7 +447,7 @@ function Manage() {
     } catch (error) {
       toast({ title: 'ข้อผิดพลาด', description: error.message || 'ไม่สามารถบันทึกสถานที่ได้', status: 'error', duration: 2000 });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
       onCloseLocationModal();
       setCurrentLocation({ id: null, name: '', coordinates: '', deviceID: '' });
       setDeviceInputMethod('dropdown');
@@ -468,7 +469,7 @@ function Manage() {
     isFormComplete,
   ]);
 
-  if (isLoading) {
+  if (isPageLoading) {
     return (
       <Box flex="1" bg="gray.50" minH="100vh" px={{ base: 4, md: 6 }} py={{ base: 6, md: 8 }}>
         <Flex align="center" mb={6}>
@@ -581,7 +582,7 @@ function Manage() {
                     colorScheme="teal"
                     size={{ base: 'md', md: 'md' }}
                     onClick={openAddLocationModal}
-                    isDisabled={isLoading}
+                    isDisabled={isSubmitting}
                     px={6}
                   >
                     เพิ่มสถานที่
@@ -590,7 +591,7 @@ function Manage() {
                     colorScheme="blue"
                     size={{ base: 'md', md: 'md' }}
                     onClick={onOpenCsvModal}
-                    isDisabled={isLoading}
+                    isDisabled={isSubmitting}
                     px={6}
                   >
                     อัปโหลดข้อมูลย้อนหลัง
@@ -622,7 +623,7 @@ function Manage() {
                               colorScheme="teal"
                               size="sm"
                               onClick={() => handleLocationEdit(loc)}
-                              isDisabled={isLoading}
+                              isDisabled={isSubmitting}
                               aria-label="Edit"
                             />
                             <IconButton
@@ -630,7 +631,7 @@ function Manage() {
                               colorScheme="red"
                               size="sm"
                               onClick={() => handleDeleteClick(loc)}
-                              isDisabled={isLoading}
+                              isDisabled={isSubmitting}
                               aria-label="Delete"
                             />
                           </HStack>
@@ -662,7 +663,7 @@ function Manage() {
                 size="md"
                 variant="outline"
                 borderRadius="md"
-                disabled={isLoading}
+                disabled={isSubmitting}
               />
             </FormControl>
 
@@ -732,7 +733,7 @@ function Manage() {
                         size="md"
                         variant="outline"
                         borderRadius="md"
-                        disabled={isLoading}
+                        disabled={isSubmitting}
                         placeholder="เลือก DeviceID"
                       >
                         {[...(currentLocation.deviceID && !unlinkedDevices.some(d => d.deviceID === currentLocation.deviceID)
@@ -751,7 +752,7 @@ function Manage() {
                         onClick={fetchUnlinkedDevices}
                         aria-label="Refresh DeviceID List"
                         title="รีเฟรชรายการ DeviceID"
-                        isDisabled={isDeviceLoading || isLoading}
+                        isDisabled={isDeviceLoading || isSubmitting}
                       >
                         <motion.div
                           animate={isDeviceLoading ? { rotate: 360 } : { rotate: 0 }}
@@ -773,7 +774,7 @@ function Manage() {
                       size="md"
                       variant="outline"
                       borderRadius="md"
-                      disabled={isLoading}
+                      disabled={isSubmitting}
                       placeholder="เช่น DEV12345"
                     />
                   </FormControl>
@@ -790,7 +791,7 @@ function Manage() {
                 variant="outline"
                 borderRadius="md"
                 p={1}
-                disabled={isLoading}
+                disabled={isSubmitting}
               />
             </FormControl>
           </ModalBody>
@@ -800,13 +801,13 @@ function Manage() {
               colorScheme="teal"
               size="md"
               onClick={handleLocationSave}
-              isLoading={isLoading}
+              isLoading={isSubmitting}
               isDisabled={!isFormComplete()}
               mr={3}
             >
               บันทึก
             </Button>
-            <Button variant="outline" size="md" onClick={onCloseLocationModal} isDisabled={isLoading}>
+            <Button variant="outline" size="md" onClick={onCloseLocationModal} isDisabled={isSubmitting}>
               ยกเลิก
             </Button>
           </ModalFooter>
@@ -833,7 +834,7 @@ function Manage() {
                 size="md"
                 variant="outline"
                 borderRadius="md"
-                disabled={isLoading}
+                disabled={isSubmitting}
               >
                 {locations.map((loc) => (
                   <option key={loc.id} value={loc.id}>
@@ -852,15 +853,15 @@ function Manage() {
                 variant="outline"
                 borderRadius="md"
                 p={1}
-                disabled={isLoading}
+                disabled={isSubmitting}
               />
             </FormControl>
           </ModalBody>
           <ModalFooter>
-            <Button colorScheme="blue" size="md" onClick={uploadCsvData} isLoading={isLoading} mr={3}>
+            <Button colorScheme="blue" size="md" onClick={uploadCsvData} isLoading={isSubmitting} mr={3}>
               อัปโหลด
             </Button>
-            <Button variant="outline" size="md" onClick={onCloseCsvModal} isDisabled={isLoading}>
+            <Button variant="outline" size="md" onClick={onCloseCsvModal} isDisabled={isSubmitting}>
               ยกเลิก
             </Button>
           </ModalFooter>
@@ -878,10 +879,10 @@ function Manage() {
               คุณต้องการลบสถานที่นี้หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้
             </AlertDialogBody>
             <AlertDialogFooter>
-              <Button ref={cancelRef} size="md" onClick={onCloseDeleteDialog} isDisabled={isLoading}>
+              <Button ref={cancelRef} size="md" onClick={onCloseDeleteDialog} isDisabled={isSubmitting}>
                 ยกเลิก
               </Button>
-              <Button colorScheme="red" size="md" onClick={handleLocationDeleteConfirm} ml={3} isLoading={isLoading}>
+              <Button colorScheme="red" size="md" onClick={handleLocationDeleteConfirm} ml={3} isLoading={isSubmitting}>
                 ลบ
               </Button>
             </AlertDialogFooter>
