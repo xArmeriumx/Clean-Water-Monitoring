@@ -174,7 +174,12 @@ function Manage() {
         throw new Error('ไม่สามารถลบสถานที่ได้');
       }
 
-      // setLocations((prev) => prev.filter((loc) => loc.id !== locationToDelete.id)); // REMOVED: React Query handles this
+      // Manually update cache for instant feedback (Optimistic-like update)
+      queryClient.setQueryData(['locations'], (oldLocations) => {
+        if (!oldLocations) return [];
+        return oldLocations.filter((loc) => loc.id !== locationToDelete.id);
+      });
+
       await queryClient.invalidateQueries({ queryKey: ['locations'] });
       await refetchUnlinkedDevices();
 
