@@ -396,33 +396,15 @@ function Manage() {
       }
       updatedLoc = await locationRes.json();
 
-      // IMMEDIATE UI UPDATE: Optimistic Update
-      queryClient.setQueryData(['locations'], (oldLocations) => {
-        if (!oldLocations) return [updatedLoc];
-        if (currentLocation.id) {
-          // Update existing location
-          return oldLocations.map((loc) => (loc.id === updatedLoc.id ? { ...loc, ...updatedLoc } : loc));
-        } else {
-          // Add new location
-          return [...oldLocations, updatedLoc];
-        }
-      });
-
       if (selectedFile) {
-        // Continue with upload (async-ish from user perspective)
-        const imageUrl = await uploadLocationImage(updatedLoc.id);
-        if (imageUrl) {
-            // Update cache AGAIN if image uploaded successfully
-            queryClient.setQueryData(['locations'], (oldLocations) => {
-                if (!oldLocations) return [];
-                 return oldLocations.map((loc) => (loc.id === updatedLoc.id ? { ...loc, imageUrl } : loc));
-            });
-        }
+        // This is a separate call, so if it fails, the location is still saved.
+        // Ideally we should alert but proceed.
+        await uploadLocationImage(updatedLoc.id);
+        // if (imageUrl) updatedLoc = { ...updatedLoc, imageUrl }; // Not needed as we invalidate queries
       }
 
-      // Non-blocking refetch
-      refetchUnlinkedDevices();
-      queryClient.invalidateQueries({ queryKey: ['locations'] });
+      await refetchUnlinkedDevices();
+      await queryClient.invalidateQueries({ queryKey: ['locations'] });
 
       /* 
       // Removed manual state update
