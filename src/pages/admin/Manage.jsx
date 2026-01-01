@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { apiGet, apiPost, apiDelete, apiFetch } from '../../utils/api';
 import {
   Box,
@@ -42,37 +42,16 @@ import {
   RadioGroup,
   Radio,
   Stack,
+  Center,
+  Spinner,
 } from '@chakra-ui/react';
 import { ArrowBackIcon, EditIcon, DeleteIcon, RepeatIcon } from '@chakra-ui/icons';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 
-// ------ แผนที่ ------
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png',
-});
-
-// ------ เพิ่ม Component สำหรับเลือกพิกัด ------
-function LocationSelector({ currentLocation, setCurrentLocation }) {
-  useMapEvents({
-    click(e) {
-      const { lat, lng } = e.latlng;
-      setCurrentLocation({
-        ...currentLocation,
-        coordinates: `${lat.toFixed(6)},${lng.toFixed(6)}`,
-      });
-    },
-  });
-  return null;
-}
+// Lazy load MapView (which contains all Leaflet dependencies)
+const MapView = lazy(() => import('../../components/ui/MapView'));
 
 function Manage() {
   const navigate = useNavigate();
@@ -470,418 +449,303 @@ function Manage() {
 
   if (isLoading) {
     return (
-      <Box flex="1" bg="gray.50" minH="100vh" px={{ base: 4, md: 6 }} py={{ base: 6, md: 8 }}>
-        <Flex align="center" mb={6}>
-          <Skeleton height="40px" width="40px" borderRadius="md" mr={3} />
-          <Skeleton height="32px" width="200px" />
-        </Flex>
-        <Flex gap={4} mb={8} flexWrap="wrap">
-          <Box flex="1" minW={{ base: '150px', md: '200px' }} p={4} bg="white" borderRadius="lg" boxShadow="sm">
-            <Skeleton height="40px" width="60px" mx="auto" mb={2} />
-            <Skeleton height="16px" width="120px" mx="auto" />
-          </Box>
-        </Flex>
-        <Box bg="white" p={4} borderRadius="lg" boxShadow="sm">
-          <Tabs variant="soft-rounded" colorScheme="blue">
-            <TabList mb={4}>
-              <Tab>
-                <Skeleton height="20px" width="80px" />
-              </Tab>
-            </TabList>
-            <TabPanels>
-              <TabPanel p={0}>
-                <Box mb={4}>
-                  <Skeleton height="36px" width="120px" borderRadius="md" />
-                </Box>
-                <Box overflowX="auto">
-                  <Table variant="simple" size="md">
-                    <Thead bg="gray.100">
-                      <Tr>
-                        {['ID', 'ชื่อสถานที่', 'พิกัด', user.role === 'admin' && 'DeviceID', 'การกระทำ'].filter(Boolean).map((header, index) => (
-                          <Th key={index}>
-                            <Skeleton height="20px" width="80px" />
-                          </Th>
-                        ))}
-                      </Tr>
-                    </Thead>
-                    <Tbody>
-                      {Array(3).fill().map((_, rowIndex) => (
-                        <Tr key={rowIndex}>
-                          {Array(user.role === 'admin' ? 5 : 4).fill().map((_, colIndex) => (
-                            <Td key={colIndex}>
-                              <Skeleton height="20px" width={colIndex === (user.role === 'admin' ? 4 : 3) ? "80px" : "100px"} />
-                            </Td>
-                          ))}
-                        </Tr>
-                      ))}
-                    </Tbody>
-                  </Table>
-                </Box>
-              </TabPanel>
-            </TabPanels>
-          </Tabs>
-        </Box>
-      </Box>
+      <Center height="100vh">
+        <Spinner size="xl" color="blue.500" />
+      </Center>
     );
   }
 
   return (
-    <Box flex="1" bg="gray.50" minH="100vh" px={{ base: 4, md: 6 }} py={{ base: 6, md: 8 }}>
-      <Flex align="center" mb={6}>
-        <IconButton
-          icon={<ArrowBackIcon />}
-          variant="ghost"
-          color="gray.700"
-          size="lg"
-          onClick={() => navigate(-1)}
-          aria-label="Go Back"
-          _hover={{ bg: 'gray.200' }}
-          mr={3}
-        />
-        <Text fontSize={{ base: '2xl', md: '3xl' }} fontWeight="bold" color="gray.800">
-          จัดการข้อมูล
-        </Text>
+    <Box p={5} bg="gray.100" minH="100vh">
+      {/* Header */}
+      <Flex justifyContent="space-between" alignItems="center" mb={6}>
+        <HStack spacing={4}>
+          <IconButton
+            icon={<ArrowBackIcon />}
+            onClick={() => navigate(-1)}
+            variant="ghost"
+            aria-label="Go Back"
+          />
+          <Text fontSize="2xl" fontWeight="bold">
+            จัดการสถานที่ (Locations)
+          </Text>
+        </HStack>
+        <HStack>
+          <Button colorScheme="green" onClick={onOpenCsvModal}>
+            Upload CSV
+          </Button>
+          <Button colorScheme="blue" onClick={openAddLocationModal}>
+            เพิ่มสถานที่
+          </Button>
+        </HStack>
       </Flex>
 
-      <Flex gap={4} mb={8} flexWrap="wrap">
-        <Box
-          flex="1"
-          minW={{ base: '150px', md: '200px' }}
-          p={4}
-          bg="white"
-          borderRadius="lg"
-          boxShadow="sm"
-          borderLeft="4px solid"
-          borderColor="blue.500"
-          textAlign="center"
-          transition="all 0.3s"
-          _hover={{ transform: 'translateY(-5px)', boxShadow: 'md' }}
-        >
-          <Text fontSize={{ base: '2xl', md: '3xl' }} fontWeight="bold" color="blue.600">
-            {locations.length}
-          </Text>
-          <Text fontSize="sm" color="gray.600">
-            สถานที่ทั้งหมด
-          </Text>
-        </Box>
-      </Flex>
-
-      <Box bg="white" p={4} borderRadius="lg" boxShadow="sm">
-        <Tabs variant="soft-rounded" colorScheme="blue">
-          <TabList mb={4}>
-            <Tab fontSize={{ base: 'sm', md: 'md' }} _selected={{ bg: 'blue.500', color: 'white' }}>
-              สถานที่
-            </Tab>
-          </TabList>
-          <TabPanels>
-            <TabPanel p={0}>
-              <Box mb={4}>
-                <HStack spacing={4}>
-                  <Button
-                    colorScheme="teal"
-                    size={{ base: 'md', md: 'md' }}
-                    onClick={openAddLocationModal}
-                    isDisabled={isLoading}
-                    px={6}
-                  >
-                    เพิ่มสถานที่
-                  </Button>
-                  <Button
-                    colorScheme="blue"
-                    size={{ base: 'md', md: 'md' }}
-                    onClick={onOpenCsvModal}
-                    isDisabled={isLoading}
-                    px={6}
-                  >
-                    อัปโหลดข้อมูลย้อนหลัง
-                  </Button>
-                </HStack>
-              </Box>
-              <Box overflowX="auto">
-                <Table variant="simple" size="md">
-                  <Thead bg="gray.100">
-                    <Tr>
-                      <Th color="gray.700">ID</Th>
-                      <Th color="gray.700">ชื่อสถานที่</Th>
-                      <Th color="gray.700">พิกัด</Th>
-                      {user.role === 'admin' && <Th color="gray.700">DeviceID</Th>}
-                      <Th color="gray.700">การกระทำ</Th>
-                    </Tr>
-                  </Thead>
-                  <Tbody>
-                    {locations.map((loc) => (
-                      <Tr key={loc.id} _hover={{ bg: 'gray.50' }}>
-                        <Td>{loc.id}</Td>
-                        <Td>{loc.name}</Td>
-                        <Td>{loc.coordinates}</Td>
-                        {user.role === 'admin' && <Td>{loc.deviceID || '-'}</Td>}
-                        <Td>
-                          <HStack spacing={2}>
-                            <IconButton
-                              icon={<EditIcon />}
-                              colorScheme="teal"
-                              size="sm"
-                              onClick={() => handleLocationEdit(loc)}
-                              isDisabled={isLoading}
-                              aria-label="Edit"
-                            />
-                            <IconButton
-                              icon={<DeleteIcon />}
-                              colorScheme="red"
-                              size="sm"
-                              onClick={() => handleDeleteClick(loc)}
-                              isDisabled={isLoading}
-                              aria-label="Delete"
-                            />
-                          </HStack>
-                        </Td>
-                      </Tr>
-                    ))}
-                  </Tbody>
-                </Table>
-              </Box>
-            </TabPanel>
-          </TabPanels>
-        </Tabs>
+      {/* Locations Table */}
+      <Box overflowX="auto" bg="white" p={4} borderRadius="md" boxShadow="sm">
+        <Table variant="simple" size="md">
+          <Thead bg="gray.200">
+            <Tr>
+              <Th>ชื่อสถานที่</Th>
+              <Th>พิกัด</Th>
+              <Th>Device ID</Th>
+              <Th>Client ID</Th>
+              <Th textAlign="center">จัดการ</Th>
+            </Tr>
+          </Thead>
+          <Tbody>
+            {locations.map((loc) => (
+              <Tr key={loc.id}>
+                <Td>{loc.name}</Td>
+                <Td>{loc.coordinates}</Td>
+                <Td>
+                  {loc.deviceID ? (
+                    <Text color="green.500" fontWeight="bold">
+                      {loc.deviceID}
+                    </Text>
+                  ) : (
+                    <Text color="gray.400">-</Text>
+                  )}
+                </Td>
+                <Td>
+                   {loc.Device?.clientID ? (
+                     <Text color="blue.500" fontWeight="bold">
+                       {loc.Device.clientID}
+                     </Text>
+                   ) : (
+                     <Text color="gray.400">-</Text>
+                   )}
+                </Td>
+                <Td textAlign="center">
+                  <HStack justifyContent="center">
+                    <IconButton
+                      icon={<EditIcon />}
+                      colorScheme="yellow"
+                      size="sm"
+                      onClick={() => handleLocationEdit(loc)}
+                      aria-label="Edit Location"
+                    />
+                    <IconButton
+                      icon={<DeleteIcon />}
+                      colorScheme="red"
+                      size="sm"
+                      onClick={() => handleDeleteClick(loc)}
+                      aria-label="Delete Location"
+                    />
+                  </HStack>
+                </Td>
+              </Tr>
+            ))}
+            {locations.length === 0 && (
+              <Tr>
+                <Td colSpan={5} textAlign="center" py={4}>
+                  <Text color="gray.500">ไม่มีข้อมูลสถานที่</Text>
+                </Td>
+              </Tr>
+            )}
+          </Tbody>
+        </Table>
       </Box>
 
-      {/* Modal เพิ่ม/แก้ไขสถานที่ */}
-      <Modal isOpen={isLocationModalOpen} onClose={onCloseLocationModal} size={{ base: 'full', md: 'md' }}>
+      {/* Location Modal */}
+      <Modal isOpen={isLocationModalOpen} onClose={onCloseLocationModal} size="xl">
         <ModalOverlay />
-        <ModalContent borderRadius="lg">
-          <ModalHeader fontSize="lg" fontWeight="bold" color="gray.800">
-            {currentLocation.id ? 'แก้ไขสถานที่' : 'เพิ่มสถานที่'}
-          </ModalHeader>
+        <ModalContent maxW="800px">
+          <ModalHeader>{currentLocation.id ? 'แก้ไขสถานที่' : 'เพิ่มสถานที่'}</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            <FormControl mb={4} isRequired>
-              <FormLabel fontSize="sm" color="gray.600">ชื่อสถานที่</FormLabel>
-              <Input
-                value={currentLocation.name}
-                onChange={(e) => setCurrentLocation({ ...currentLocation, name: e.target.value })}
-                size="md"
-                variant="outline"
-                borderRadius="md"
-                disabled={isLoading}
-              />
-            </FormControl>
+            <Flex
+              direction={{ base: 'column', md: 'row' }}
+              gap={6}
+            >
+              {/* Left Column: Form Inputs */}
+              <Stack spacing={4} flex={1}>
+                {/* Image Upload */}
+                <Box>
+                  <FormLabel>รูปภาพสถานที่</FormLabel>
+                   {(currentLocation.imageUrl || selectedFile) && (
+                     <Box mb={2} borderRadius="md" overflow="hidden" maxW="200px" border="1px solid #e2e8f0">
+                        <img 
+                          src={selectedFile ? URL.createObjectURL(selectedFile) : currentLocation.imageUrl} 
+                          alt="preview" 
+                          style={{ width: '100%', height: 'auto', display: 'block' }}
+                        />
+                     </Box>
+                   )}
+                  <Input type="file" accept="image/*" onChange={handleFileChange} p={1} />
+                </Box>
 
-            {/* ✅ แผนที่สำหรับเลือกพิกัด */}
-            <FormControl mb={4} isRequired>
-              <FormLabel fontSize="sm" color="gray.600">เลือกพิกัดบนแผนที่</FormLabel>
-              <Box height="300px" width="100%" border="1px solid #CBD5E0" borderRadius="md" overflow="hidden">
-                <MapContainer
-                  center={currentLocation.coordinates
-                    ? currentLocation.coordinates.split(',').map(Number)
-                    : [13.7563, 100.5018]} // Default Bangkok
-                  zoom={13}
-                  style={{ height: '100%', width: '100%' }}
-                >
-                  <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='© <a href=\"http://osm.org/copyright\">OpenStreetMap</a> contributors'
+                <FormControl isRequired>
+                  <FormLabel>ชื่อสถานที่</FormLabel>
+                  <Input
+                    placeholder="กรอกชื่อสถานที่"
+                    value={currentLocation.name}
+                    onChange={(e) => setCurrentLocation({ ...currentLocation, name: e.target.value })}
                   />
-                  <LocationSelector
-                    currentLocation={currentLocation}
-                    setCurrentLocation={setCurrentLocation}
-                  />
-                  {currentLocation.coordinates && (
-                    <Marker
-                      position={currentLocation.coordinates.split(',').map(Number)}
-                    />
-                  )}
-                </MapContainer>
-              </Box>
-              {currentLocation.coordinates && (
-                <Text fontSize="sm" mt={2} color="gray.500">
-                  พิกัดที่เลือก: {currentLocation.coordinates}
-                </Text>
-              )}
-            </FormControl>
-
-            {user.role === 'admin' && (
-              <>
-                <FormControl mb={4}>
-                  <FormLabel fontSize="sm" color="gray.600">วิธีเลือก DeviceID</FormLabel>
-                  <RadioGroup
-                    onChange={(value) => {
-                      setDeviceInputMethod(value);
-                      if (value === 'manual') {
-                        setManualDeviceID(currentLocation.deviceID || '');
-                        setCurrentLocation({ ...currentLocation, deviceID: '' });
-                      } else if (value === 'dropdown') {
-                        setManualDeviceID('');
-                      }
-                    }}
-                    value={deviceInputMethod}
-                  >
-                    <Stack direction="row" spacing={4}>
-                      <Radio value="dropdown">เลือกจากรายการ</Radio>
-                      <Radio value="manual">กรอก DeviceID เอง</Radio>
-                    </Stack>
-                  </RadioGroup>
                 </FormControl>
 
-                {deviceInputMethod === 'dropdown' && (
-                  <FormControl mb={4} isRequired>
-                    <FormLabel fontSize="sm" color="gray.600">DeviceID</FormLabel>
-                    <HStack>
-                      <Select
-                        value={currentLocation.deviceID || ''}
-                        onChange={(e) => setCurrentLocation({ ...currentLocation, deviceID: e.target.value })}
-                        size="md"
-                        variant="outline"
-                        borderRadius="md"
-                        disabled={isLoading}
-                        placeholder="เลือก DeviceID"
-                      >
-                        {[...(currentLocation.deviceID && !unlinkedDevices.some(d => d.deviceID === currentLocation.deviceID)
-                          ? [{ deviceID: currentLocation.deviceID }]
-                          : []),
-                          ...(Array.isArray(unlinkedDevices) ? unlinkedDevices : []),
-                        ].map((device) => (
-                          <option key={device.deviceID} value={device.deviceID}>
-                            {device.deviceID}
-                          </option>
-                        ))}
-                      </Select>
-                      <IconButton
-                        colorScheme="blue"
-                        size="md"
-                        onClick={fetchUnlinkedDevices}
-                        aria-label="Refresh DeviceID List"
-                        title="รีเฟรชรายการ DeviceID"
-                        isDisabled={isDeviceLoading || isLoading}
-                      >
-                        <motion.div
-                          animate={isDeviceLoading ? { rotate: 360 } : { rotate: 0 }}
-                          transition={isDeviceLoading ? { repeat: Infinity, duration: 1, ease: 'linear' } : {}}
-                        >
-                          <RepeatIcon />
-                        </motion.div>
-                      </IconButton>
-                    </HStack>
+                <FormControl isRequired>
+                  <FormLabel>พิกัด (ละติจูด, ลองจิจูด)</FormLabel>
+                  <Input
+                    placeholder="เช่น 13.7563, 100.5018"
+                    value={currentLocation.coordinates}
+                    onChange={(e) => setCurrentLocation({ ...currentLocation, coordinates: e.target.value })}
+                  />
+                  <Text fontSize="xs" color="gray.500" mt={1}>
+                    คลิกบนแผนที่เพื่อเลือกพิกัด
+                  </Text>
+                </FormControl>
+
+                {/* Device ID Selection (Admin Only) */}
+                {user.role === 'admin' && (
+                  <FormControl>
+                    <FormLabel>Device ID (อุปกรณ์ที่เชื่อมโยง)</FormLabel>
+                     <RadioGroup 
+                       onChange={setDeviceInputMethod} 
+                       value={deviceInputMethod} 
+                       mb={3}
+                     >
+                       <Stack direction="row">
+                         <Radio value="dropdown">เลือกจากรายการ</Radio>
+                         <Radio value="manual">กรอกเอง</Radio>
+                       </Stack>
+                     </RadioGroup>
+
+                    {deviceInputMethod === 'dropdown' ? (
+                       <HStack>
+                          <Select
+                            placeholder="เลือก Device ID"
+                            value={currentLocation.deviceID || ''}
+                            onChange={(e) => setCurrentLocation({ ...currentLocation, deviceID: e.target.value })}
+                            onClick={() => {
+                               // Optional: refresh unlinked devices when dropdown opens
+                               if (unlinkedDevices.length === 0) fetchUnlinkedDevices();
+                            }}
+                          >
+                            <option value="">ไม่มีอุปกรณ์</option>
+                            {/* Option for current device if editing and it has one */}
+                            {currentLocation.deviceID && (
+                               <option value={currentLocation.deviceID}>
+                                  {currentLocation.deviceID} (ปัจจุบัน)
+                               </option>
+                            )}
+                            {/* Filter out the current device from unlinked list if present to avoid duplication */}
+                            {unlinkedDevices
+                               .filter(d => d.deviceID !== currentLocation.deviceID)
+                               .map((device) => (
+                              <option key={device.id} value={device.deviceID}>
+                                {device.deviceID}
+                              </option>
+                            ))}
+                          </Select>
+                          <IconButton
+                            icon={<RepeatIcon />}
+                            onClick={fetchUnlinkedDevices}
+                            isLoading={isDeviceLoading}
+                            aria-label="Refresh Devices"
+                            size="sm"
+                          />
+                       </HStack>
+                    ) : (
+                      <Input 
+                        placeholder="กรอก Device ID เอง (เช่น esp32-001)" 
+                        value={manualDeviceID}
+                        onChange={(e) => setManualDeviceID(e.target.value)}
+                      />
+                    )}
+                     <Text fontSize="xs" color="gray.500" mt={1}>
+                       * หากเลือก "กรอกเอง" ระบบจะไม่เช็คจากรายการอุปกรณ์ที่มี (ระวังชื่อซ้ำ)
+                     </Text>
                   </FormControl>
                 )}
+              </Stack>
 
-                {deviceInputMethod === 'manual' && (
-                  <FormControl mb={4} isRequired>
-                    <FormLabel fontSize="sm" color="gray.600">กรอก DeviceID</FormLabel>
-                    <Input
-                      value={manualDeviceID}
-                      onChange={(e) => setManualDeviceID(e.target.value)}
-                      size="md"
-                      variant="outline"
-                      borderRadius="md"
-                      disabled={isLoading}
-                      placeholder="เช่น DEV12345"
-                    />
-                  </FormControl>
-                )}
-              </>
-            )}
-
-            <FormControl>
-              <FormLabel fontSize="sm" color="gray.600">รูปสถานที่</FormLabel>
-              <Input
-                type="file"
-                onChange={handleFileChange}
-                size="md"
-                variant="outline"
-                borderRadius="md"
-                p={1}
-                disabled={isLoading}
-              />
-            </FormControl>
+              {/* Right Column: Map Preview */}
+              <Box flex={1} height="300px" borderRadius="md" overflow="hidden" boxShadow="sm">
+                <Text mb={2} fontWeight="bold">แผนที่:</Text>
+                {/* LAZY LOADED MAP COMPONENT */}
+                <Suspense fallback={
+                    <Center h="100%" bg="gray.100" borderRadius="md">
+                        <Spinner color="blue.500" />
+                    </Center>
+                }>
+                     <MapView
+                       currentLocation={currentLocation}
+                       setCurrentLocation={setCurrentLocation}
+                     />
+                </Suspense>
+              </Box>
+            </Flex>
           </ModalBody>
-
           <ModalFooter>
-            <Button
-              colorScheme="teal"
-              size="md"
-              onClick={handleLocationSave}
-              isLoading={isLoading}
-              isDisabled={!isFormComplete()}
-              mr={3}
-            >
-              บันทึก
-            </Button>
-            <Button variant="outline" size="md" onClick={onCloseLocationModal} isDisabled={isLoading}>
-              ยกเลิก
-            </Button>
+             <Button variant="ghost" mr={3} onClick={onCloseLocationModal}>
+               ยกเลิก
+             </Button>
+             <Button colorScheme="blue" onClick={handleLocationSave} isLoading={isLoading}>
+               บันทึก
+             </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
 
-
-
-      {/* Modal อัปโหลด CSV */}
-      <Modal isOpen={isCsvModalOpen} onClose={onCloseCsvModal} size={{ base: 'full', md: 'md' }}>
+      {/* Upload CSV Modal */}
+      <Modal isOpen={isCsvModalOpen} onClose={onCloseCsvModal}>
         <ModalOverlay />
-        <ModalContent borderRadius="lg">
-          <ModalHeader fontSize="lg" fontWeight="bold" color="gray.800">
-            อัปโหลดข้อมูลย้อนหลัง
-          </ModalHeader>
+        <ModalContent>
+          <ModalHeader>อัปโหลดข้อมูล CSV</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            <FormControl mb={4}>
-              <FormLabel fontSize="sm" color="gray.600">เลือกสถานที่</FormLabel>
-              <Select
-                value={selectedLocationId}
-                onChange={(e) => setSelectedLocationId(e.target.value)}
-                placeholder="เลือกสถานที่"
-                size="md"
-                variant="outline"
-                borderRadius="md"
-                disabled={isLoading}
-              >
-                {locations.map((loc) => (
-                  <option key={loc.id} value={loc.id}>
-                    {loc.name}
-                  </option>
-                ))}
-              </Select>
-            </FormControl>
-            <FormControl>
-              <FormLabel fontSize="sm" color="gray.600">ไฟล์ CSV</FormLabel>
-              <Input
-                type="file"
-                accept=".csv"
-                onChange={handleCsvFileChange}
-                size="md"
-                variant="outline"
-                borderRadius="md"
-                p={1}
-                disabled={isLoading}
-              />
-            </FormControl>
+             <Stack spacing={4}>
+               <FormControl>
+                  <FormLabel>เลือกสถานที่ปลายทาง</FormLabel>
+                   <Select 
+                      placeholder="เกรณาเลือกสถานที่"
+                      value={selectedLocationId}
+                      onChange={(e) => setSelectedLocationId(e.target.value)}
+                   >
+                      {locations.map(loc => (
+                         <option key={loc.id} value={loc.id}>{loc.name}</option>
+                      ))}
+                   </Select>
+               </FormControl>
+               <FormControl>
+                  <FormLabel>ไฟล์ CSV</FormLabel>
+                  <Input type="file" accept=".csv" onChange={handleCsvFileChange} p={1}/>
+                  <Text fontSize="xs" color="gray.500" mt={2}>
+                     รูปแบบไฟล์: pH, TDS, Temperature, Turbidity, Timestamp (yyyy-mm-dd hh:mm:ss)
+                  </Text>
+               </FormControl>
+             </Stack>
           </ModalBody>
           <ModalFooter>
-            <Button colorScheme="blue" size="md" onClick={uploadCsvData} isLoading={isLoading} mr={3}>
-              อัปโหลด
-            </Button>
-            <Button variant="outline" size="md" onClick={onCloseCsvModal} isDisabled={isLoading}>
-              ยกเลิก
-            </Button>
+             <Button variant="ghost" mr={3} onClick={onCloseCsvModal}>ยกเลิก</Button>
+             <Button colorScheme="green" onClick={uploadCsvData} isLoading={isLoading}>อัปโหลด</Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
 
-      {/* Modal ยืนยันการลบ */}
-      <AlertDialog isOpen={isDeleteDialogOpen} leastDestructiveRef={cancelRef} onClose={onCloseDeleteDialog}>
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isDeleteDialogOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onCloseDeleteDialog}
+      >
         <AlertDialogOverlay>
-          <AlertDialogContent borderRadius="lg" bg="white">
-            <AlertDialogHeader fontSize="lg" fontWeight="bold" color="gray.800">
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
               ยืนยันการลบ
             </AlertDialogHeader>
-            <AlertDialogBody fontSize="md" color="gray.600">
-              คุณต้องการลบสถานที่นี้หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้
+
+            <AlertDialogBody>
+              คุณแน่ใจหรือไม่ที่จะลบสถานที่ "{locationToDelete?.name}"?
+              <br />
+              การกระทำนี้ไม่สามารถเรียกคืนได้
             </AlertDialogBody>
+
             <AlertDialogFooter>
-              <Button ref={cancelRef} size="md" onClick={onCloseDeleteDialog} isDisabled={isLoading}>
+              <Button ref={cancelRef} onClick={onCloseDeleteDialog}>
                 ยกเลิก
               </Button>
-              <Button colorScheme="red" size="md" onClick={handleLocationDeleteConfirm} ml={3} isLoading={isLoading}>
+              <Button colorScheme="red" onClick={handleLocationDeleteConfirm} ml={3} isLoading={isLoading}>
                 ลบ
               </Button>
             </AlertDialogFooter>

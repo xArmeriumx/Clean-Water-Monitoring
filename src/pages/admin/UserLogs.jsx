@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { apiGet } from '../../utils/api';
 import {
   Box,
   Heading,
   Input,
   Select,
-  Button,
   Table,
   Thead,
   Tbody,
@@ -14,82 +13,68 @@ import {
   Td,
   TableContainer,
   Flex,
-  Spinner,
   Center,
   Text,
-  HStack,
-  useToast,
+  IconButton,
   Card,
   CardBody,
-  IconButton,
+  Spinner,
+  useToast, // Keep useToast for consistency, though React Query handles errors well
 } from '@chakra-ui/react';
 import { ArrowUpDownIcon, ChevronLeftIcon, ChevronRightIcon } from '@chakra-ui/icons';
-import { useAuth } from '../../auth/AuthContext'; // ถ้ามี AuthContext
-// import dayjs from 'dayjs'; // ถ้าต้องการใช้ dayjs สำหรับจัดการวันที่ (เลือกติดตั้งเพิ่ม: npm i dayjs)
+import { useQuery } from '@tanstack/react-query'; // Import React Query
+import { formatDateTime } from '../../utils/date'; // Import Date Utility
 
 function UserLogs() {
-  const { user } = useAuth();
-  const token = user?.token || '';
   const toast = useToast();
 
-  // ---------------- State สำหรับเก็บ Logs ทั้งหมด ----------------
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  // ---------------- State สำหรับ Filter / Search ----------------
+  // ---------------- State for Filter / Search ----------------
   const [searchTerm, setSearchTerm] = useState('');
   const [filterUserId, setFilterUserId] = useState('');
-  const [startDate, setStartDate] = useState(''); // รับเป็น string "YYYY-MM-DD"
+  const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  // ---------------- State สำหรับ Sorting ----------------
-  // เช่น: { key: 'timestamp', direction: 'asc' }
+  // ---------------- State for Sorting ----------------
   const [sortConfig, setSortConfig] = useState({ key: 'timestamp', direction: 'desc' });
 
-  // ---------------- State สำหรับ Pagination ----------------
+  // ---------------- State for Pagination ----------------
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // ======================== useEffect: Fetch Logs ========================
-  useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        setLoading(true);
-        const res = await apiGet('/api/userlogs');
-        if (!res.ok) throw new Error('Failed to fetch logs');
-        const data = await res.json();
-        setLogs(data);
-      } catch (err) {
-        toast({
-          title: 'Error',
-          description: err.message,
-          status: 'error',
-          duration: 3000,
-          isClosable: true,
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchLogs();
-  }, [token, toast]);
+  // ======================== React Query: Fetch Logs ========================
+  const fetchLogs = async () => {
+    const res = await apiGet('/api/userlogs');
+    if (!res.ok) throw new Error('Failed to fetch logs');
+    return res.json();
+  };
+
+  const { data: logs = [], isLoading, isError, error } = useQuery({
+    queryKey: ['userLogs'],
+    queryFn: fetchLogs,
+    staleTime: 1000 * 60 * 1, // Cache for 1 minute
+    refetchOnWindowFocus: false,
+  });
+
+  if (isError) {
+     // Optional: You could useEffect to show toast on error, or just render error UI
+     console.error("Error fetching logs:", error);
+  }
 
   // ======================== Filter + Search ========================
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
-      // 1) ค้นหาใน action หรือ details
+      // 1) Search
       const matchesSearch =
         searchTerm.trim() === '' ||
         (log.action?.toLowerCase().includes(searchTerm.toLowerCase()) ||
          log.details?.toLowerCase().includes(searchTerm.toLowerCase()));
 
-      // 2) กรอง userId
+      // 2) Filter User ID
       const matchesUser =
         !filterUserId || filterUserId === '' || log.userId === filterUserId;
 
-      // 3) กรองช่วงวันที่ (ถ้ามี startDate หรือ endDate)
-      //    สมมติ timestamp เป็น ISO string
-      const logDate = new Date(log.timestamp).getTime(); // แปลงเป็น timestamp
+      // 3) Filter Date Range
+      const logDate = new Date(log.timestamp).getTime();
       let matchesDate = true;
       if (startDate) {
         const start = new Date(`${startDate}T00:00:00`).getTime();
@@ -148,8 +133,6 @@ function UserLogs() {
 
   // ======================== Handlers ========================
   const handleSort = (key) => {
-    // ถ้าคลิกคีย์เดิม -> สลับ asc/desc
-    // ถ้าคลิกคีย์ใหม่ -> เริ่มต้น asc
     if (sortConfig.key === key) {
       setSortConfig((prev) => ({
         key,
@@ -158,7 +141,7 @@ function UserLogs() {
     } else {
       setSortConfig({ key, direction: 'asc' });
     }
-    setCurrentPage(1); // กลับไปหน้าแรก
+    setCurrentPage(1);
   };
 
   const handleFilterUserId = (e) => {
@@ -182,12 +165,20 @@ function UserLogs() {
   };
 
   // ======================== Render ========================
-  if (loading) {
+  if (isLoading) {
     return (
       <Center minH="100vh">
         <Spinner size="xl" color="blue.500" />
       </Center>
     );
+  }
+
+  if (isError) {
+      return (
+          <Center minH="100vh">
+              <Text color="red.500">Error loading logs: {error.message}</Text>
+          </Center>
+      )
   }
 
   return (
@@ -311,14 +302,7 @@ function UserLogs() {
                     <Td>{log.action}</Td>
                     <Td>{log.details}</Td>
                     <Td>
-                      {new Date(log.timestamp).toLocaleString('en-GB', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        second: '2-digit',
-                      })}
+                      {formatDateTime(log.timestamp)}
                     </Td>
                   </Tr>
                 );
