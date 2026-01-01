@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -25,34 +25,20 @@ import {
   Skeleton,
   SkeletonText,
   Link,
+  Spinner,
 } from '@chakra-ui/react';
 import { ArrowBackIcon, WarningIcon, InfoIcon } from '@chakra-ui/icons';
 import { useAuth } from '../../auth/AuthContext';
 import { apiGet } from '../../utils/api';
 import * as pdfjsLib from 'pdfjs-dist/build/pdf';
-import {
-  MapContainer,
-  TileLayer,
-  Marker,
-  Tooltip,
-  ZoomControl,
-  useMap,
-} from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
 import waterQualityStandards from '../../data/waterQualityStandards.json';
+import { useQuery } from '@tanstack/react-query';
+
+// Lazy Load Map
+const UserMapView = lazy(() => import('../../components/ui/UserMapView'));
 
 // Set the worker for pdfjs
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.js`;
-
-// Custom Leaflet icon definition
-const customIcon = new L.Icon({
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
 
 // Utility function: parse coordinate string to an array [lat, lng]
 function parseCoordinates(coordStr) {
@@ -64,17 +50,6 @@ function parseCoordinates(coordStr) {
   const lng = parseFloat(parts[1]);
   if (isNaN(lat) || isNaN(lng)) return [0, 0];
   return [lat, lng];
-}
-
-// Component: MapAdjuster
-function MapAdjuster({ position }) {
-  const map = useMap();
-  useEffect(() => {
-    if (position && position[0] !== 0 && position[1] !== 0) {
-      map.setView(position, 16);
-    }
-  }, [position, map]);
-  return null;
 }
 
 // Component: PDFViewerAllPages
@@ -141,11 +116,7 @@ function MappingDetail() {
   const { user } = useAuth();
   const toast = useToast();
 
-  const [locationData, setLocationData] = useState(null);
-  const [labHistory, setLabHistory] = useState([]);
   const [labDoc, setLabDoc] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [pdfEmbedUrl, setPdfEmbedUrl] = useState(null);
   const [isPdfOpen, setIsPdfOpen] = useState(false);
   const [isZoomOpen, setIsZoomOpen] = useState(false);
@@ -158,66 +129,45 @@ function MappingDetail() {
   const sidebarWidth = useBreakpointValue({ base: '100%', md: '400px' });
   const isDesktop = useBreakpointValue({ base: false, md: true });
 
-  useEffect(() => {
-    const fetchLocationData = async () => {
-      try {
-        setLoading(true);
-        const response = await apiGet(`/api/locations/${id}`);
+  // ================= React Query: Location Data =================
+  const { data: locationData, isLoading: loadingLocation, error } = useQuery({
+    queryKey: ['location', id],
+    queryFn: async () => {
+      const res = await apiGet(`/api/locations/${id}`);
+      if (!res.ok) throw new Error('Failed to fetch location data');
+      return res.json();
+    },
+    enabled: !!id,
+  });
 
-        if (!response.ok) {
-          throw new Error('Failed to fetch location data');
-        }
-        const data = await response.json();
-        setLocationData(data);
-        setLabDoc(data ? data.labDocument || null : null);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (id) {
-      fetchLocationData();
-    }
-  }, [id, user]);
-
-  useEffect(() => {
-    const fetchLabHistory = async () => {
-      try {
-        const response = await fetch(`/api/locations/${id}/labhistory`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${user?.token}`,
-          },
-        });
-        if (!response.ok) {
-          throw new Error('Failed to fetch lab history');
-        }
-        const data = await response.json();
-        setLabHistory(data || []);
-      } catch (err) {
+  // ================= React Query: Lab History =================
+  const { data: labHistory = [] } = useQuery({
+    queryKey: ['labHistory', id],
+    queryFn: async () => {
+        // Assuming user token is handled by apiFetch or not needed if public
+        // If it requires auth, apiGet should handle it via cookies now
+        const res = await apiGet(`/api/locations/${id}/labhistory`);
+        if (!res.ok) throw new Error('Failed to fetch lab history');
+        return res.json();
+    },
+    enabled: !!id,
+    retry: false, // Don't retry if it fails (e.g. 401 unauth)
+    onError: (err) => {
         console.error('Error fetching lab history:', err);
-        toast({
-          title: 'เกิดข้อผิดพลาด',
-          description: 'ไม่สามารถดึงประวัติผลตรวจได้',
-          status: 'error',
-          duration: 3000,
-          isClosable: true,
-        });
-      }
-    };
-
-    if (locationData) {
-      fetchLabHistory();
     }
-  }, [locationData, id, user, toast]);
+  });
+
+  // Update labDoc when locationData changes
+  useEffect(() => {
+    if (locationData) {
+      setLabDoc(locationData.labDocument || null);
+    }
+  }, [locationData]);
 
   if (error) {
     return (
       <Center h="100vh" color="blue.500">
-        <Text>{error}</Text>
+        <Text>{error.message}</Text>
       </Center>
     );
   }
@@ -332,7 +282,7 @@ function MappingDetail() {
             p={4}
             bg={isDesktop ? 'white' : 'transparent'}
           >
-            {loading ? (
+            {loadingLocation ? (
               <VStack spacing={4} align="stretch">
                 <Skeleton height="200px" borderRadius="lg" />
                 <Box bg={cardBg} borderRadius="lg" p={6}>
@@ -431,18 +381,18 @@ function MappingDetail() {
           {/* Map Section (Desktop Only) */}
           {isDesktop && (
             <Box flex="1" h="100%">
-              <MapContainer center={position} zoom={12} style={{ height: '100%', width: '100%' }} zoomControl={false}>
-                <MapAdjuster position={position} />
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="© OpenStreetMap contributors" />
-                <ZoomControl position="bottomright" />
-                {position[0] !== 0 && position[1] !== 0 && (
-                  <Marker position={position} icon={customIcon}>
-                    <Tooltip direction="top" offset={[0, -15]} opacity={1} permanent>
-                      <span>{locationData ? locationData.name : ''}</span>
-                    </Tooltip>
-                  </Marker>
-                )}
-              </MapContainer>
+               <Suspense
+                    fallback={
+                        <Center h="100%" bg="gray.100">
+                            <Spinner size="xl" color="blue.500" />
+                        </Center>
+                    }
+                >
+                  <UserMapView 
+                    singleLocation={position}
+                    singleLocationName={locationData ? locationData.name : ''}
+                  />
+                </Suspense>
             </Box>
           )}
         </Flex>

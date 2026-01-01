@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, Suspense, lazy } from 'react';
 import { Icon } from '@chakra-ui/react';
 import {
   Box,
@@ -18,15 +18,17 @@ import {
   useToast,
   useBreakpointValue,
   useColorModeValue,
+  Spinner,
 } from '@chakra-ui/react';
 import { MdList, MdMap } from 'react-icons/md';
 import { FaMapLocationDot, FaDroplet } from 'react-icons/fa6';
-import { MapContainer, TileLayer, Marker, Tooltip, ZoomControl, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 import { apiGet } from '../../utils/api';
+import { useQuery } from '@tanstack/react-query';
+
+// Lazy Load Map
+const UserMapView = lazy(() => import('../../components/ui/UserMapView'));
 
 // Skeleton for sidebar loading
 const SkeletonLoading = () => (
@@ -69,47 +71,6 @@ const openDirectionsInGoogleMaps = (lat, lng) => {
   window.open(url, '_blank');
 };
 
-// Custom marker icons
-const customIcon = new L.Icon({
-  iconUrl:
-    'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowUrl:
-    'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-});
-const userIcon = new L.Icon({
-  iconUrl: 'https://cdn-icons-png.flaticon.com/512/3177/3177361.png',
-  iconSize: [35, 35],
-  iconAnchor: [17, 35],
-});
-
-// MapAdjuster adjusts map size and view
-const MapAdjuster = React.memo(({ userPosition, locations, isMapView }) => {
-  const map = useMap();
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      map.invalidateSize();
-      if (userPosition) {
-        map.setView(userPosition, 16);
-      } else if (locations.length) {
-        const allCoords = locations
-          .map((loc) => parseCoordinates(loc.coordinates))
-          .filter((coord) => coord[0] !== 0 || coord[1] !== 0);
-        if (allCoords.length) {
-          const bounds = L.latLngBounds(allCoords);
-          if (bounds.isValid()) {
-            map.fitBounds(bounds, { padding: [50, 50], maxZoom: 13 });
-          }
-        }
-      }
-    }, 100);
-    return () => clearTimeout(timer);
-  }, [userPosition, locations, map, isMapView]);
-  return null;
-});
-
 // Main Mapping component
 function Mapping() {
   const { user } = useAuth();
@@ -123,8 +84,6 @@ function Mapping() {
   const [isMapView, setIsMapView] = useState(initialMapView);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [locations, setLocations] = useState([]);
-  const [loadingLocations, setLoadingLocations] = useState(true);
   const [userPosition, setUserPosition] = useState(null);
   const [hasFetchedLocation, setHasFetchedLocation] = useState(false);
 
@@ -145,36 +104,16 @@ function Mapping() {
     }
   }, [navigate, user?.role]);
 
-  // Fetch locations from API
-  useEffect(() => {
-    const fetchLocations = async () => {
-      try {
-        const res = await apiGet('/api/locations');
-        
-        if (!res.ok) throw new Error('Failed to fetch locations');
-        const data = await res.json();
-        setLocations(data);
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: error.message || 'Could not load locations',
-          status: 'error',
-          duration: 2000,
-          isClosable: true,
-          position: toastPosition,
-          containerStyle: {
-            background: 'rgba(0, 0, 0, 0.6)',
-            color: 'white',
-            borderRadius: 'md',
-            fontSize: 'sm',
-          },
-        });
-      } finally {
-        setLoadingLocations(false);
-      }
-    };
-    fetchLocations();
-  }, [toast, user, toastPosition]);
+  // ================= React Query: Fetch Locations =================
+  const { data: locations = [], isLoading: loadingLocations } = useQuery({
+    queryKey: ['locations'],
+    queryFn: async () => {
+      const res = await apiGet('/api/locations');
+      if (!res.ok) throw new Error('Failed to fetch locations');
+      return res.json();
+    },
+    staleTime: 1000 * 60 * 5, // Cache 5 mins
+  });
 
   // Get user geolocation
   useEffect(() => {
@@ -259,9 +198,6 @@ function Mapping() {
       return newView;
     });
   }, []);
-
-  // Default map center (Bangkok)
-  const mapCenter = [13.756331, 100.501762];
 
   return (
     <Box as="main" bg={bgColor} minH="100vh" position="relative" overflow="hidden">
@@ -554,48 +490,20 @@ function Mapping() {
                 </Box>
               )}
 
-              <MapContainer
-                center={mapCenter}
-                zoom={12}
-                style={{ height: '100%', width: '100%' }}
-                zoomControl={false}
+              {/* Lazy Loading UserMapView */}
+              <Suspense
+                fallback={
+                    <Center h="100%" bg="gray.100">
+                        <Spinner size="xl" color="blue.500" />
+                    </Center>
+                }
               >
-                <MapAdjuster
-                  userPosition={userPosition}
-                  locations={filteredLocations}
-                  isMapView={isMapView}
-                />
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution="© OpenStreetMap contributors"
-                />
-                <ZoomControl position="bottomright" />
-                {userPosition && (
-                  <Marker position={userPosition} icon={userIcon}>
-                    <Tooltip direction="top" offset={[0, -15]} opacity={1} permanent>
-                      <span>คุณอยู่ตรงนี้</span>
-                    </Tooltip>
-                  </Marker>
-                )}
-                {filteredLocations.map((loc) => {
-                  const coords = parseCoordinates(loc.coordinates);
-                  if (coords[0] || coords[1]) {
-                    return (
-                      <Marker
-                        key={loc.id}
-                        position={coords}
-                        icon={customIcon}
-                        eventHandlers={{ click: () => navigate(`/mappingdetail/${loc.id}`) }}
-                      >
-                        <Tooltip direction="top" offset={[0, -15]} opacity={1} permanent>
-                          <span>{loc.name}</span>
-                        </Tooltip>
-                      </Marker>
-                    );
-                  }
-                  return null;
-                })}
-              </MapContainer>
+                  <UserMapView 
+                    locations={filteredLocations}
+                    userPosition={userPosition}
+                    isMapView={isMapView}
+                  />
+              </Suspense>
             </Box>
           )}
         </Flex>
