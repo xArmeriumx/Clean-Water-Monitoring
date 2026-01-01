@@ -83,11 +83,10 @@ async function fetchIssuesByLocation({ locId, token }) {
 
 function AdminIssues() {
   const [searchParams] = useSearchParams();
-  const locationIdQuery = searchParams.get('locationId'); // เก็บไว้สำหรับรองรับ query parameter (ถ้ามี)
+  const locationIdQuery = searchParams.get('locationId');
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
-  const token = user?.token || '';
   const queryClient = useQueryClient();
   const bgColor = useColorModeValue('white', 'gray.800');
   const textColor = useColorModeValue('gray.800', 'white');
@@ -110,7 +109,7 @@ function AdminIssues() {
   const [selectedLocationId, setSelectedLocationId] = useState(null);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['adminIssues', token],
+    queryKey: ['adminIssues'],
     queryFn: fetchAllData,
     refetchOnWindowFocus: false,
   });
@@ -136,7 +135,7 @@ function AdminIssues() {
       return { locId, issueKey };
     },
     onSuccess: ({ locId, issueKey }) => {
-      queryClient.setQueryData(['adminIssues', token], (oldData) => {
+      queryClient.setQueryData(['adminIssues'], (oldData) => {
         if (!oldData) return oldData;
         const newLocations = oldData.locations.map((loc) => {
           if (loc.id === locId) {
@@ -172,12 +171,12 @@ function AdminIssues() {
     try {
       const newLocations = await Promise.all(
         locations.map(async (loc) => {
-          const newIssues = await fetchIssuesByLocation({ locId: loc.id, token });
+          const newIssues = await fetchIssuesByLocation({ locId: loc.id });
           return { ...loc, issues: newIssues };
         })
       );
       const newTotalIssues = newLocations.reduce((total, loc) => total + (loc.issues?.length || 0), 0);
-      queryClient.setQueryData(['adminIssues', token], {
+      queryClient.setQueryData(['adminIssues'], {
         locations: newLocations,
         totalIssues: newTotalIssues,
       });
@@ -201,8 +200,8 @@ function AdminIssues() {
 
   const refreshIssuesForLocation = async (locId) => {
     try {
-      const newIssues = await fetchIssuesByLocation({ locId, token });
-      queryClient.setQueryData(['adminIssues', token], (oldData) => {
+      const newIssues = await fetchIssuesByLocation({ locId });
+      queryClient.setQueryData(['adminIssues'], (oldData) => {
         if (!oldData) return oldData;
         let oldTotal = oldData.totalIssues;
         const newLocations = oldData.locations.map((loc) => {
@@ -233,10 +232,10 @@ function AdminIssues() {
   };
 
   const handleIssueDone = (locId, issueKey) => {
-    if (!locId || !issueKey || !token) {
+    if (!locId || !issueKey || !user) {
       toast({
         title: 'เกิดข้อผิดพลาด',
-        description: 'ข้อมูลไม่ครบถ้วนหรือไม่มี token',
+        description: 'ข้อมูลไม่ครบถ้วนหรือไม่ได้เข้าสู่ระบบ',
         status: 'error',
         duration: 3000,
         isClosable: true,
