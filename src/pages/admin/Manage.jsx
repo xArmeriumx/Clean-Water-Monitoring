@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import { apiGet, apiPost, apiDelete, apiFetch } from '../../utils/api';
 import {
   Box,
@@ -42,37 +42,16 @@ import {
   RadioGroup,
   Radio,
   Stack,
+  Center,
+  Spinner,
 } from '@chakra-ui/react';
 import { ArrowBackIcon, EditIcon, DeleteIcon, RepeatIcon } from '@chakra-ui/icons';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
 
-// ------ แผนที่ ------
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
-import L from 'leaflet';
-
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-icon-2x.png',
-  iconUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.3/dist/images/marker-shadow.png',
-});
-
-// ------ เพิ่ม Component สำหรับเลือกพิกัด ------
-function LocationSelector({ currentLocation, setCurrentLocation }) {
-  useMapEvents({
-    click(e) {
-      const { lat, lng } = e.latlng;
-      setCurrentLocation({
-        ...currentLocation,
-        coordinates: `${lat.toFixed(6)},${lng.toFixed(6)}`,
-      });
-    },
-  });
-  return null;
-}
+// Lazy load MapView (which contains Leaflet and Search)
+const MapView = lazy(() => import('../../components/ui/MapView'));
 
 function Manage() {
   const navigate = useNavigate();
@@ -666,31 +645,20 @@ function Manage() {
               />
             </FormControl>
 
-            {/* ✅ แผนที่สำหรับเลือกพิกัด */}
+            {/* ✅ แผนที่สำหรับเลือกพิกัด + ค้นหา */}
             <FormControl mb={4} isRequired>
               <FormLabel fontSize="sm" color="gray.600">เลือกพิกัดบนแผนที่</FormLabel>
               <Box height="300px" width="100%" border="1px solid #CBD5E0" borderRadius="md" overflow="hidden">
-                <MapContainer
-                  center={currentLocation.coordinates
-                    ? currentLocation.coordinates.split(',').map(Number)
-                    : [13.7563, 100.5018]} // Default Bangkok
-                  zoom={13}
-                  style={{ height: '100%', width: '100%' }}
-                >
-                  <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    attribution='© <a href=\"http://osm.org/copyright\">OpenStreetMap</a> contributors'
-                  />
-                  <LocationSelector
-                    currentLocation={currentLocation}
-                    setCurrentLocation={setCurrentLocation}
-                  />
-                  {currentLocation.coordinates && (
-                    <Marker
-                      position={currentLocation.coordinates.split(',').map(Number)}
+                <Suspense fallback={
+                    <Center h="100%" bg="gray.100">
+                        <Spinner color="blue.500" />
+                    </Center>
+                }>
+                    <MapView 
+                        currentLocation={currentLocation}
+                        setCurrentLocation={setCurrentLocation}
                     />
-                  )}
-                </MapContainer>
+                </Suspense>
               </Box>
               {currentLocation.coordinates && (
                 <Text fontSize="sm" mt={2} color="gray.500">
