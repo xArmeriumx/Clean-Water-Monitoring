@@ -66,6 +66,7 @@ function Manage() {
   const [currentLocation, setCurrentLocation] = useState({ id: null, name: '', coordinates: '', deviceID: '' });
   const [selectedFile, setSelectedFile] = useState(null);
   // const [isLoading, setIsLoading] = useState(true); // Managed by React Query
+  const [isSubmitting, setIsSubmitting] = useState(false); // For mutation loading state
   const [isDeviceLoading, setIsDeviceLoading] = useState(false); // Can be replaced by useQuery isLoading
   const [csvFile, setCsvFile] = useState(null);
   const [selectedLocationId, setSelectedLocationId] = useState('');
@@ -152,7 +153,7 @@ function Manage() {
 
   const handleLocationDeleteConfirm = useCallback(async () => {
     if (!locationToDelete) return;
-    // setIsLoading(true); // Handled by mutation or just rely on global loading but for now manual is fine for overlay
+    setIsSubmitting(true);
 
     try {
       if (locationToDelete.deviceID && user.role === 'admin') {
@@ -197,7 +198,7 @@ function Manage() {
         position: 'top',
       });
     } finally {
-      // setIsLoading(false);
+      setIsSubmitting(false);
       onCloseDeleteDialog();
       setLocationToDelete(null);
     }
@@ -260,7 +261,7 @@ function Manage() {
       return;
     }
 
-    setIsLoading(true);
+    setIsSubmitting(true);
 
     try {
       const formData = new FormData();
@@ -296,7 +297,7 @@ function Manage() {
         position: 'top',
       });
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
       onCloseCsvModal();
       setCsvFile(null);
       setSelectedLocationId('');
@@ -351,7 +352,7 @@ function Manage() {
       return;
     }
 
-    // setIsLoading(true); // Using manual loading state for saving UX
+    setIsSubmitting(true);
     try {
       let updatedLoc;
       const url = currentLocation.id ? `/api/locations/${currentLocation.id}` : '/api/locations';
@@ -413,7 +414,7 @@ function Manage() {
     } catch (error) {
       toast({ title: 'ข้อผิดพลาด', description: error.message || 'ไม่สามารถบันทึกสถานที่ได้', status: 'error', duration: 2000 });
     } finally {
-      // setIsLoading(false);
+      setIsSubmitting(false);
       onCloseLocationModal();
       setCurrentLocation({ id: null, name: '', coordinates: '', deviceID: '' });
       setDeviceInputMethod('dropdown');
@@ -757,13 +758,13 @@ function Manage() {
               colorScheme="teal"
               size="md"
               onClick={handleLocationSave}
-              isLoading={isLoading}
-              isDisabled={!isFormComplete()}
+              isLoading={isSubmitting}
+              isDisabled={!isFormComplete() || isSubmitting}
               mr={3}
             >
               บันทึก
             </Button>
-            <Button variant="outline" size="md" onClick={onCloseLocationModal} isDisabled={isLoading}>
+            <Button variant="outline" size="md" onClick={onCloseLocationModal} isDisabled={isSubmitting}>
               ยกเลิก
             </Button>
           </ModalFooter>
@@ -814,10 +815,10 @@ function Manage() {
             </FormControl>
           </ModalBody>
           <ModalFooter>
-            <Button colorScheme="blue" size="md" onClick={uploadCsvData} isLoading={isLoading} mr={3}>
+            <Button colorScheme="blue" size="md" onClick={uploadCsvData} isLoading={isSubmitting} mr={3}>
               อัปโหลด
             </Button>
-            <Button variant="outline" size="md" onClick={onCloseCsvModal} isDisabled={isLoading}>
+            <Button variant="outline" size="md" onClick={onCloseCsvModal} isDisabled={isSubmitting}>
               ยกเลิก
             </Button>
           </ModalFooter>
@@ -835,10 +836,10 @@ function Manage() {
               คุณต้องการลบสถานที่นี้หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้
             </AlertDialogBody>
             <AlertDialogFooter>
-              <Button ref={cancelRef} size="md" onClick={onCloseDeleteDialog} isDisabled={isLoading}>
+              <Button ref={cancelRef} size="md" onClick={onCloseDeleteDialog} isDisabled={isSubmitting}>
                 ยกเลิก
               </Button>
-              <Button colorScheme="red" size="md" onClick={handleLocationDeleteConfirm} ml={3} isLoading={isLoading}>
+              <Button colorScheme="red" size="md" onClick={handleLocationDeleteConfirm} ml={3} isLoading={isSubmitting}>
                 ลบ
               </Button>
             </AlertDialogFooter>
