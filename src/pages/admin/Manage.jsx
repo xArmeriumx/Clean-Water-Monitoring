@@ -65,6 +65,7 @@ function Manage() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeviceLoading, setIsDeviceLoading] = useState(false);
   const [csvFile, setCsvFile] = useState(null);
   const [selectedLocationId, setSelectedLocationId] = useState('');
   const [deviceInputMethod, setDeviceInputMethod] = useState('dropdown');
@@ -239,7 +240,6 @@ function Manage() {
         status: 'error',
         duration: 3000,
         isClosable: true,
-        position: 'top',
       });
       return null;
     }
@@ -253,7 +253,6 @@ function Manage() {
         status: 'error',
         duration: 3000,
         isClosable: true,
-        position: 'top',
       });
       return;
     }
@@ -282,6 +281,9 @@ function Manage() {
         isClosable: true,
         position: 'top',
       });
+      
+      // No need to refresh locations list for CSV upload, but good for safety
+      // fetchLocations(); 
 
     } catch (error) {
       console.error('CSV Upload error:', error.message);
@@ -291,7 +293,6 @@ function Manage() {
         status: 'error',
         duration: 3000,
         isClosable: true,
-        position: 'top',
       });
     } finally {
       setIsSubmitting(false);
@@ -364,8 +365,7 @@ function Manage() {
           });
 
           if (!unlinkRes.ok) {
-            const errorData = await unlinkRes.json();
-            throw new Error(errorData.error || 'ไม่สามารถยกเลิกการเชื่อมโยงอุปกรณ์เดิมได้');
+             // Ignore
           }
         }
       }
@@ -389,7 +389,6 @@ function Manage() {
       updatedLoc = await locationRes.json();
 
       if (selectedFile) {
-        // This is a separate call, so if it fails, the location is still saved.
         await uploadLocationImage(updatedLoc.id);
       }
 
@@ -801,32 +800,46 @@ function Manage() {
               />
             </FormControl>
           </ModalBody>
+
           <ModalFooter>
-            <Button colorScheme="blue" size="md" onClick={uploadCsvData} isLoading={isSubmitting} mr={3}>
+            <Button
+              colorScheme="blue"
+              onClick={uploadCsvData}
+              isLoading={isSubmitting}
+              isDisabled={isSubmitting || !csvFile || !selectedLocationId}
+              mr={3}
+            >
               อัปโหลด
             </Button>
-            <Button variant="outline" size="md" onClick={onCloseCsvModal} isDisabled={isSubmitting}>
+            <Button variant="ghost" onClick={onCloseCsvModal}>
               ยกเลิก
             </Button>
           </ModalFooter>
         </ModalContent>
       </Modal>
 
-      {/* Modal ยืนยันการลบ */}
-      <AlertDialog isOpen={isDeleteDialogOpen} leastDestructiveRef={cancelRef} onClose={onCloseDeleteDialog}>
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog
+        isOpen={isDeleteDialogOpen}
+        leastDestructiveRef={cancelRef}
+        onClose={onCloseDeleteDialog}
+      >
         <AlertDialogOverlay>
-          <AlertDialogContent borderRadius="lg" bg="white">
-            <AlertDialogHeader fontSize="lg" fontWeight="bold" color="gray.800">
+          <AlertDialogContent>
+            <AlertDialogHeader fontSize="lg" fontWeight="bold">
               ยืนยันการลบ
             </AlertDialogHeader>
-            <AlertDialogBody fontSize="md" color="gray.600">
-              คุณต้องการลบสถานที่นี้หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้
+
+            <AlertDialogBody>
+              คุณต้องการลบสถานที่ "{locationToDelete?.name}" ใช่หรือไม่?
+              การกระทำนี้ไม่สามารถย้อนกลับได้
             </AlertDialogBody>
+
             <AlertDialogFooter>
-              <Button ref={cancelRef} size="md" onClick={onCloseDeleteDialog} isDisabled={isSubmitting}>
+              <Button ref={cancelRef} onClick={onCloseDeleteDialog}>
                 ยกเลิก
               </Button>
-              <Button colorScheme="red" size="md" onClick={handleLocationDeleteConfirm} ml={3} isLoading={isSubmitting}>
+              <Button colorScheme="red" onClick={handleLocationDeleteConfirm} ml={3} isLoading={isSubmitting}>
                 ลบ
               </Button>
             </AlertDialogFooter>
