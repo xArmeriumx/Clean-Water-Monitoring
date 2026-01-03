@@ -18,8 +18,37 @@ export default function middleware(request) {
     return;
   }
 
+  // 🔒 Security: Check Referer/Origin to prevent direct access
+  // This ensures the request comes from our website, not typed in the browser
+  const referer = request.headers.get('referer');
+  const origin = request.headers.get('origin');
+  
+  // Define allowed domains (adjust as needed)
+  const isAllowed = 
+    (referer && (
+      referer.includes('cleanwatermonitoring.com') || 
+      referer.includes('vercel.app') || 
+      referer.includes('localhost')
+    )) ||
+    (origin && (
+      origin.includes('cleanwatermonitoring.com') || 
+      origin.includes('vercel.app') || 
+      origin.includes('localhost')
+    ));
+
+  // If request doesn't come from our site, block it
+  if (!isAllowed) {
+    return new Response(JSON.stringify({ 
+      error: 'Forbidden', 
+      message: 'Direct API access is not allowed.' 
+    }), {
+      status: 403, 
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
   // Get the backend URL from environment
-  const backendUrl = process.env.API_URL || 'https://api-water-monitoring.onrender.com';
+  const backendUrl = process.env.API_URL;
   
   // Build the destination URL
   const url = new URL(request.url);
