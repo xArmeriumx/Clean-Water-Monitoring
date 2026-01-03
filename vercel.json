@@ -2,7 +2,7 @@
     "rewrites": [
         {
             "source": "/api/(.*)",
-            "destination": "https://api.cleanwatermonitoring.com/api/$1"
+            "destination": "https://api-water-monitoring.onrender.com/api/$1"
         },
         {
             "source": "/(.*)",

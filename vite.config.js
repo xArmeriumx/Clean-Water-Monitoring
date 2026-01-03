@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => {
           : undefined,
       proxy: {
         '/api': {
-          target: 'https://api.cleanwatermonitoring.com',
+          target: 'https://api-water-monitoring.onrender.com',
           changeOrigin: true,
           secure: false,
           headers: {
