@@ -40,7 +40,7 @@ export default function middleware(request) {
   if (!isAllowed) {
     return new Response(JSON.stringify({ 
       error: 'Forbidden', 
-      message: 'Direct API access is not allowed.' 
+      message: 'Direct API access is not allowed. (Cleanwatermonitoring.com)' 
     }), {
       status: 403, 
       headers: { 'Content-Type': 'application/json' }
