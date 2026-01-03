@@ -18,8 +18,8 @@ export default function middleware(request) {
     return;
   }
 
-  // Get the backend URL from vercel.json destination
-  const backendUrl = 'https://api-water-monitoring.onrender.com';
+  // Get the backend URL from environment
+  const backendUrl = process.env.API_URL || 'https://api-water-monitoring.onrender.com';
   
   // Build the destination URL
   const url = new URL(request.url);
