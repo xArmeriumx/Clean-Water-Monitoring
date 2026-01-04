@@ -1,6 +1,6 @@
 // AppForUser.js
 import React from 'react';
-import { Helmet } from 'react-helmet'; 
+import { Helmet } from 'react-helmet-async'; 
 import LiffLogin from '../../auth/LiffLogin';
 import Mapping from './Mapping';
 
