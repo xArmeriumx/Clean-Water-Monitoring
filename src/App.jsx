@@ -1,5 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { HelmetProvider } from 'react-helmet-async';
 import { AuthProvider } from './auth/AuthContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Spinner, Center } from '@chakra-ui/react';
@@ -52,10 +53,11 @@ function LoadingSpinner() {
 
 function App() {
   return (
-    <AuthProvider>
-      <QueryClientProvider client={queryClient}>
-        <Router>
-          <Routes>
+    <HelmetProvider>
+      <AuthProvider>
+        <QueryClientProvider client={queryClient}>
+          <Router>
+            <Routes>
             {/* หน้า Landing Page */}
             <Route path="/" element={<LandingPage />} />
 
@@ -225,10 +227,11 @@ function App() {
               }
             />
           
-          </Routes>
-        </Router>
-      </QueryClientProvider>
-    </AuthProvider>
+            </Routes>
+          </Router>
+        </QueryClientProvider>
+      </AuthProvider>
+    </HelmetProvider>
   );
 }
 
