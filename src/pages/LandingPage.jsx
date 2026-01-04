@@ -137,18 +137,26 @@ const LandingPage = () => {
         <script type="application/ld+json">
           {JSON.stringify({
             "@context": "https://schema.org",
-            "@type": "Project",
+            "@type": "SoftwareApplication",
             "name": "Clean Water Monitoring",
             "url": "https://cleanwatermonitoring.com",
             "logo": "https://cleanwatermonitoring.com/logo.png",
             "description":
               "IoT KMUTNB: ระบบตรวจวัดคุณภาพน้ำอัจฉริยะผ่าน LINE LIFF ติดตามผลเรียลไทม์ด้วยเทคโนโลยี IoT พร้อมแดชบอร์ดและแผนที่จุดบริการน้ำสะอาดจาก CS-KMUTNB",
-            "creator": {
+            "applicationCategory": "IoT, Environmental Monitoring",
+            "operatingSystem": "Web Browser",
+            "author": {
+              "@type": "Person",
+              "name": "Napat Pamornsut",
+              "alternateName": ["Napatdev", "ณภัทร ภมรสูตร"],
+              "url": "https://napatdev.com"
+            },
+            "sourceOrganization": {
               "@type": "Organization",
               "name": "CS-KMUTNB",
               "url": "https://www.kmutnb.ac.th",
             },
-            "keywords": "IoT KMUTNB, water quality monitoring, clean water, LINE LIFF, real-time monitoring",
+            "keywords": "IoT KMUTNB, water quality monitoring, clean water, LINE LIFF, real-time monitoring, Napatdev",
             "contactPoint": {
               "@type": "ContactPoint",
               "contactType": "customer service",
