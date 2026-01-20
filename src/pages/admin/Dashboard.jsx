@@ -54,8 +54,9 @@ function Dashboard() {
     queryKey: ["locations"],
     queryFn: fetchLocations,
     refetchInterval: 10000, // รีเฟรชทุก 10 วินาที
-    staleTime: 5000, // ข้อมูลถือว่า fresh 5 วินาที
-    enabled: true,
+    staleTime: 0, // ไม่ใช้ cache รีเฟรชทุกครั้ง
+    gcTime: 0, // ไม่เก็บ cache
+    refetchOnWindowFocus: true,
   });
 
   const {
@@ -67,8 +68,9 @@ function Dashboard() {
     queryKey: ["issuesCount"],
     queryFn: fetchIssuesCount,
     refetchInterval: 30000, // issues ไม่ต้องบ่อย
-    staleTime: 10000,
-    enabled: true,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: true,
   });
 
   const loading = isLocLoading || isIssuesLoading;

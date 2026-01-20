@@ -144,7 +144,9 @@ function Servicedetail() {
     },
     enabled: !!id,
     refetchInterval: 10000, // รีเฟรชทุก 10 วินาที
-    staleTime: 5000, // ข้อมูลถือว่า fresh 5 วินาที
+    staleTime: 0, // ไม่ใช้ cache
+    gcTime: 0, // ไม่เก็บ cache
+    refetchOnWindowFocus: true,
   });
 
   const {
@@ -160,7 +162,9 @@ function Servicedetail() {
     },
     enabled: !!id,
     refetchInterval: 10000, // รีเฟรชทุก 10 วินาที
-    staleTime: 5000, // ข้อมูลถือว่า fresh 5 วินาที
+    staleTime: 0, // ไม่ใช้ cache
+    gcTime: 0, // ไม่เก็บ cache
+    refetchOnWindowFocus: true,
   });
 
   const {
@@ -175,8 +179,10 @@ function Servicedetail() {
       return res.json();
     },
     enabled: !!id,
-    refetchInterval: 30000, // รีเฟรชทุก 30 วินาที (issues ไม่ต้องบ่อย)
-    staleTime: 10000,
+    refetchInterval: 30000, // รีเฟรชทุก 30 วินาที
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: true,
   });
 
   const isLoading = isLocationLoading || isLogsLoading || isIssuesLoading;
