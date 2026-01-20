@@ -1,7 +1,7 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { apiGet } from '../../utils/api';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Line } from 'react-chartjs-2';
+import React, { useState, useMemo, useCallback } from "react";
+import { apiGet } from "../../utils/api";
+import { useParams, useNavigate } from "react-router-dom";
+import { Line } from "react-chartjs-2";
 import {
   Box,
   Text,
@@ -19,8 +19,8 @@ import {
   Skeleton,
   SkeletonText,
   Input, // Added for Chakra UI date picker
-} from '@chakra-ui/react';
-import { ArrowBackIcon } from '@chakra-ui/icons';
+} from "@chakra-ui/react";
+import { ArrowBackIcon } from "@chakra-ui/icons";
 import {
   Chart as ChartJS,
   LineElement,
@@ -31,12 +31,21 @@ import {
   Tooltip,
   Legend,
   Filler,
-} from 'chart.js';
-import { useAuth } from '../../auth/AuthContext';
-import { useQuery } from '@tanstack/react-query';
+} from "chart.js";
+import { useAuth } from "../../auth/AuthContext";
+import { useQuery } from "@tanstack/react-query";
 
 // Register Chart.js components
-ChartJS.register(LineElement, PointElement, LinearScale, Title, CategoryScale, Tooltip, Legend, Filler);
+ChartJS.register(
+  LineElement,
+  PointElement,
+  LinearScale,
+  Title,
+  CategoryScale,
+  Tooltip,
+  Legend,
+  Filler,
+);
 
 function createChartData(label, data, labels) {
   return {
@@ -45,10 +54,10 @@ function createChartData(label, data, labels) {
       {
         label,
         data: data || [],
-        borderColor: '#3182CE',
-        backgroundColor: 'rgba(49, 130, 206, 0.1)',
-        pointBackgroundColor: '#3182CE',
-        pointBorderColor: '#3182CE',
+        borderColor: "#3182CE",
+        backgroundColor: "rgba(49, 130, 206, 0.1)",
+        pointBackgroundColor: "#3182CE",
+        pointBorderColor: "#3182CE",
         tension: 0.4,
         pointRadius: 4,
         pointHoverRadius: 6,
@@ -64,15 +73,21 @@ function chartOptions(isMobile, title, unit) {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { display: true, position: 'top', labels: { color: '#2D3748' } },
+      legend: { display: true, position: "top", labels: { color: "#2D3748" } },
       tooltip: {
-        mode: 'index',
+        mode: "index",
         intersect: false,
         callbacks: {
-          label: (context) => `${context.dataset.label}: ${context.raw} ${unit}`,
+          label: (context) =>
+            `${context.dataset.label}: ${context.raw} ${unit}`,
         },
       },
-      title: { display: true, text: title, color: '#2D3748', font: { size: isMobile ? 12 : 14 } },
+      title: {
+        display: true,
+        text: title,
+        color: "#2D3748",
+        font: { size: isMobile ? 12 : 14 },
+      },
     },
     scales: {
       x: {
@@ -80,20 +95,21 @@ function chartOptions(isMobile, title, unit) {
           maxRotation: 45,
           minRotation: 0,
           font: { size: isMobile ? 10 : 12 },
-          color: '#2D3748',
+          color: "#2D3748",
           maxTicksLimit: 7,
           autoSkip: true,
         },
         grid: { display: false },
       },
       y: {
-        grid: { drawBorder: true, color: 'rgba(200, 200, 200, 0.2)' },
+        grid: { drawBorder: true, color: "rgba(200, 200, 200, 0.2)" },
         ticks: {
           font: { size: isMobile ? 10 : 12 },
-          color: '#2D3748',
+          color: "#2D3748",
           callback: (value) => `${value} ${unit}`,
         },
-        min: title.includes('TDS') || title.includes('Turbidity') ? 0 : undefined,
+        min:
+          title.includes("TDS") || title.includes("Turbidity") ? 0 : undefined,
       },
     },
   };
@@ -106,7 +122,7 @@ function Servicedetail() {
   const { user } = useAuth();
 
   const [filterConfig, setFilterConfig] = useState({
-    type: '24h',
+    type: "24h",
     startDate: null,
     endDate: null,
     customRange: false,
@@ -120,45 +136,48 @@ function Servicedetail() {
     isLoading: isLocationLoading,
     error: locationError,
   } = useQuery({
-    queryKey: ['location', id],
+    queryKey: ["location", id],
     queryFn: async () => {
       const res = await apiGet(`/api/locations/${id}`);
-      if (!res.ok) throw new Error('Failed to fetch location data');
+      if (!res.ok) throw new Error("Failed to fetch location data");
       return res.json();
     },
     enabled: !!id,
+    refetchInterval: 10000, // รีเฟรชทุก 10 วินาที
+    staleTime: 5000, // ข้อมูลถือว่า fresh 5 วินาที
   });
-  
 
   const {
     data: logsData,
     isLoading: isLogsLoading,
     error: logsError,
   } = useQuery({
-    queryKey: ['logs', id],
+    queryKey: ["logs", id],
     queryFn: async () => {
       const res = await apiGet(`/api/locations/${id}/logs`);
-      if (!res.ok) throw new Error('Failed to fetch logs');
+      if (!res.ok) throw new Error("Failed to fetch logs");
       return res.json();
     },
     enabled: !!id,
+    refetchInterval: 10000, // รีเฟรชทุก 10 วินาที
+    staleTime: 5000, // ข้อมูลถือว่า fresh 5 วินาที
   });
-  
 
   const {
     data: issuesData,
     isLoading: isIssuesLoading,
     error: issuesError,
   } = useQuery({
-    queryKey: ['issues', id],
+    queryKey: ["issues", id],
     queryFn: async () => {
       const res = await apiGet(`/api/locations/${id}/issues`);
-      if (!res.ok) throw new Error('Failed to fetch issues');
+      if (!res.ok) throw new Error("Failed to fetch issues");
       return res.json();
     },
     enabled: !!id,
+    refetchInterval: 30000, // รีเฟรชทุก 30 วินาที (issues ไม่ต้องบ่อย)
+    staleTime: 10000,
   });
-  
 
   const isLoading = isLocationLoading || isLogsLoading || isIssuesLoading;
   const error = locationError || logsError || issuesError;
@@ -167,64 +186,135 @@ function Servicedetail() {
     if (!logsData) return null;
     return {
       data: {
-        ph: logsData.map(item => item.ph ?? null),
-        tds: logsData.map(item => {
+        ph: logsData.map((item) => item.ph ?? null),
+        tds: logsData.map((item) => {
           const v = item.tds ?? null;
           return v !== null && v < 0 ? 0 : v;
         }),
-        turbidity: logsData.map(item => {
+        turbidity: logsData.map((item) => {
           const v = item.turbidity ?? null;
           return v !== null && v < 0 ? 0 : v;
         }),
-        temp: logsData.map(item => item.temperature ?? null),
-        timestamps: logsData.map(item => new Date(item.timestamp)),
+        temp: logsData.map((item) => item.temperature ?? null),
+        timestamps: logsData.map((item) => new Date(item.timestamp)),
       },
     };
   }, [logsData]);
 
   const filterData = useCallback(() => {
-    if (!serviceData) return { data: { ph: [], tds: [], turbidity: [], temp: [], timestamps: [], labels: [] } };
+    if (!serviceData)
+      return {
+        data: {
+          ph: [],
+          tds: [],
+          turbidity: [],
+          temp: [],
+          timestamps: [],
+          labels: [],
+        },
+      };
     const { ph, tds, turbidity, temp, timestamps } = serviceData.data;
     const now = new Date();
     let start, end;
     switch (filterConfig.type) {
-      case '24h':
-        start = new Date(now.getTime() - 24*60*60*1000); end = now; break;
-      case '1w':
-        start = new Date(now.getTime() - 7*24*60*60*1000); end = now; break;
-      case '1m':
-        start = new Date(now.getTime() - 30*24*60*60*1000); end = now; break;
-      case '1y':
-        start = new Date(now.getTime() - 365*24*60*60*1000); end = now; break;
-      case 'custom':
-        if (!filterConfig.startDate || !filterConfig.endDate) return { data: { ph: [], tds: [], turbidity: [], temp: [], timestamps: [], labels: [] } };
+      case "24h":
+        start = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        end = now;
+        break;
+      case "1w":
+        start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        end = now;
+        break;
+      case "1m":
+        start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        end = now;
+        break;
+      case "1y":
+        start = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+        end = now;
+        break;
+      case "custom":
+        if (!filterConfig.startDate || !filterConfig.endDate)
+          return {
+            data: {
+              ph: [],
+              tds: [],
+              turbidity: [],
+              temp: [],
+              timestamps: [],
+              labels: [],
+            },
+          };
         start = filterConfig.startDate;
         end = new Date(filterConfig.endDate);
-        end.setHours(23,59,59,999);
+        end.setHours(23, 59, 59, 999);
         break;
       default:
-        start = new Date(0); end = now;
+        start = new Date(0);
+        end = now;
     }
-    const idxs = timestamps.map((t,i)=> (t>=start&&t<=end?i:-1)).filter(i=>i!==-1);
+    const idxs = timestamps
+      .map((t, i) => (t >= start && t <= end ? i : -1))
+      .filter((i) => i !== -1);
     return {
       data: {
-        ph: idxs.map(i=>ph[i]),
-        tds: idxs.map(i=>tds[i]),
-        turbidity: idxs.map(i=>turbidity[i]),
-        temp: idxs.map(i=>temp[i]),
-        timestamps: idxs.map(i=>timestamps[i]),
-        labels: idxs.map(i=>timestamps[i].toLocaleString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}))
-      }
+        ph: idxs.map((i) => ph[i]),
+        tds: idxs.map((i) => tds[i]),
+        turbidity: idxs.map((i) => turbidity[i]),
+        temp: idxs.map((i) => temp[i]),
+        timestamps: idxs.map((i) => timestamps[i]),
+        labels: idxs.map((i) =>
+          timestamps[i].toLocaleString("th-TH", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        ),
+      },
     };
   }, [serviceData, filterConfig]);
 
   const filteredData = filterData();
 
   const chartConfigs = [
-    { data: createChartData('pH Levels', filteredData.data.ph, filteredData.data.labels), title: 'pH Levels', unit: '' },
-    { data: createChartData('TDS (ppm)', filteredData.data.tds, filteredData.data.labels), title: 'TDS (ppm)', unit: 'ppm' },
-    { data: createChartData('Turbidity (NTU)', filteredData.data.turbidity, filteredData.data.labels), title: 'Turbidity (NTU)', unit: 'NTU' },
-    { data: createChartData('Temperature (°C)', filteredData.data.temp, filteredData.data.labels), title: 'Temperature (°C)', unit: '°C' },
+    {
+      data: createChartData(
+        "pH Levels",
+        filteredData.data.ph,
+        filteredData.data.labels,
+      ),
+      title: "pH Levels",
+      unit: "",
+    },
+    {
+      data: createChartData(
+        "TDS (ppm)",
+        filteredData.data.tds,
+        filteredData.data.labels,
+      ),
+      title: "TDS (ppm)",
+      unit: "ppm",
+    },
+    {
+      data: createChartData(
+        "Turbidity (NTU)",
+        filteredData.data.turbidity,
+        filteredData.data.labels,
+      ),
+      title: "Turbidity (NTU)",
+      unit: "NTU",
+    },
+    {
+      data: createChartData(
+        "Temperature (°C)",
+        filteredData.data.temp,
+        filteredData.data.labels,
+      ),
+      title: "Temperature (°C)",
+      unit: "°C",
+    },
   ];
 
   const deviceStatus = useMemo(() => {
@@ -232,10 +322,11 @@ function Servicedetail() {
     const timeThresholdMs = timeThreshold * 60 * 1000; // Convert minutes to milliseconds
     const timestamps = filteredData.data.timestamps;
     const lastTimestamp = timestamps[timestamps.length - 1];
-    const isRecent = lastTimestamp && (now - new Date(lastTimestamp)) <= timeThresholdMs;
+    const isRecent =
+      lastTimestamp && now - new Date(lastTimestamp) <= timeThresholdMs;
     return {
-      name: 'Device',
-      status: isRecent ? 'Active' : 'Offline',
+      name: "Device",
+      status: isRecent ? "Active" : "Offline",
     };
   }, [filteredData, timeThreshold]);
 
@@ -243,24 +334,57 @@ function Servicedetail() {
   const locationName = locationData?.name || `Location ${id}`;
 
   const handleViewIssues = () => navigate(`/adminissues?locationId=${id}`);
-  const handleFilterChange = (v) => setFilterConfig(fc => ({ ...fc, type: v, customRange: v === 'custom', ...(v !== 'custom' ? { startDate: null, endDate: null } : {}) }));
+  const handleFilterChange = (v) =>
+    setFilterConfig((fc) => ({
+      ...fc,
+      type: v,
+      customRange: v === "custom",
+      ...(v !== "custom" ? { startDate: null, endDate: null } : {}),
+    }));
 
   if (isLoading) {
     return (
-      <VStack spacing={6} p={{base:4,md:6}} align="stretch" maxW="1200px" mx="auto">
+      <VStack
+        spacing={6}
+        p={{ base: 4, md: 6 }}
+        align="stretch"
+        maxW="1200px"
+        mx="auto"
+      >
         <HStack justify="space-between" w="full">
-          <HStack><Skeleton boxSize="40px"/><Skeleton w="200px" h="32px"/></HStack>
-          <Skeleton w="120px" h="36px"/>
+          <HStack>
+            <Skeleton boxSize="40px" />
+            <Skeleton w="200px" h="32px" />
+          </HStack>
+          <Skeleton w="120px" h="36px" />
         </HStack>
         <Card bg="white" borderRadius="lg" boxShadow="sm">
-          <CardHeader><Skeleton w="150px" h="28px"/></CardHeader>
-          <CardBody><HStack spacing={4} wrap="wrap">
-            <HStack><Skeleton w="100px" h="20px"/><Skeleton w="60px" h="20px" borderRadius="full"/></HStack>
-          </HStack></CardBody>
+          <CardHeader>
+            <Skeleton w="150px" h="28px" />
+          </CardHeader>
+          <CardBody>
+            <HStack spacing={4} wrap="wrap">
+              <HStack>
+                <Skeleton w="100px" h="20px" />
+                <Skeleton w="60px" h="20px" borderRadius="full" />
+              </HStack>
+            </HStack>
+          </CardBody>
         </Card>
-        <Box><Skeleton w="100px" h="20px" mb={2}/><Skeleton w={{base:'full',md:'200px'}} h="40px" borderRadius="md"/></Box>
+        <Box>
+          <Skeleton w="100px" h="20px" mb={2} />
+          <Skeleton
+            w={{ base: "full", md: "200px" }}
+            h="40px"
+            borderRadius="md"
+          />
+        </Box>
         <VStack spacing={4} align="stretch">
-          {Array(4).fill().map((_,i)=><Skeleton key={i} h="300px" borderRadius="md"/>)}
+          {Array(4)
+            .fill()
+            .map((_, i) => (
+              <Skeleton key={i} h="300px" borderRadius="md" />
+            ))}
         </VStack>
       </VStack>
     );
@@ -269,29 +393,54 @@ function Servicedetail() {
   if (error) {
     return (
       <VStack minH="100vh" justify="center" color="red.500">
-        <Text fontSize={{base:'md',md:'lg'}}>Error: {error.message}</Text>
+        <Text fontSize={{ base: "md", md: "lg" }}>Error: {error.message}</Text>
       </VStack>
     );
   }
 
   return (
-    <VStack spacing={6} p={{base:4,md:6}} align="stretch" maxW="1200px" mx="auto">
+    <VStack
+      spacing={6}
+      p={{ base: 4, md: 6 }}
+      align="stretch"
+      maxW="1200px"
+      mx="auto"
+    >
       {/* Header */}
       <HStack justify="space-between" w="full">
         <HStack>
-          <IconButton icon={<ArrowBackIcon />} variant="ghost" aria-label="Go Back" onClick={() => navigate(-1)} size={{base:'md',md:'lg'}} />
-          <Heading size={{base:'lg',md:'xl'}}>{locationName}</Heading>
+          <IconButton
+            icon={<ArrowBackIcon />}
+            variant="ghost"
+            aria-label="Go Back"
+            onClick={() => navigate(-1)}
+            size={{ base: "md", md: "lg" }}
+          />
+          <Heading size={{ base: "lg", md: "xl" }}>{locationName}</Heading>
         </HStack>
-        <Button colorScheme="red" size={{base:'sm',md:'md'}} onClick={handleViewIssues}>View Issues ({issuesCount})</Button>
+        <Button
+          colorScheme="red"
+          size={{ base: "sm", md: "md" }}
+          onClick={handleViewIssues}
+        >
+          View Issues ({issuesCount})
+        </Button>
       </HStack>
 
       {/* Device Status */}
       <Card bg="white" borderRadius="lg" boxShadow="sm">
-        <CardHeader><Heading size={{base:'md',md:'lg'}}>Device Status</Heading></CardHeader>
+        <CardHeader>
+          <Heading size={{ base: "md", md: "lg" }}>Device Status</Heading>
+        </CardHeader>
         <CardBody>
           <HStack spacing={4} wrap="wrap" align="center">
             <Text>
-              Device: <Badge colorScheme={deviceStatus.status === 'Active' ? 'green' : 'red'}>{deviceStatus.status}</Badge>
+              Device:{" "}
+              <Badge
+                colorScheme={deviceStatus.status === "Active" ? "green" : "red"}
+              >
+                {deviceStatus.status}
+              </Badge>
             </Text>
             {/* <Box>
               <Text mb={1}>Check within:</Text>
@@ -314,31 +463,61 @@ function Servicedetail() {
       {/* Filter */}
       <Box>
         <Text mb={2}>Filter Data By:</Text>
-        <Select value={filterConfig.type} onChange={e => handleFilterChange(e.target.value)} maxW="200px">
+        <Select
+          value={filterConfig.type}
+          onChange={(e) => handleFilterChange(e.target.value)}
+          maxW="200px"
+        >
           <option value="24h">Last 24 Hours</option>
           <option value="1w">Last 1 Week</option>
           <option value="1m">Last 1 Month</option>
           <option value="1y">Last 1 Year</option>
           <option value="custom">Custom Range</option>
         </Select>
-        {filterConfig.type === 'custom' && (
+        {filterConfig.type === "custom" && (
           <HStack mt={4} spacing={4}>
             <Box>
               <Text mb={1}>Start Date:</Text>
               <Input
                 type="date"
-                value={filterConfig.startDate ? filterConfig.startDate.toISOString().slice(0, 10) : ''}
-                onChange={(e) => setFilterConfig(fc => ({ ...fc, startDate: e.target.value ? new Date(e.target.value) : null }))}
-                max={filterConfig.endDate ? filterConfig.endDate.toISOString().slice(0, 10) : undefined}
+                value={
+                  filterConfig.startDate
+                    ? filterConfig.startDate.toISOString().slice(0, 10)
+                    : ""
+                }
+                onChange={(e) =>
+                  setFilterConfig((fc) => ({
+                    ...fc,
+                    startDate: e.target.value ? new Date(e.target.value) : null,
+                  }))
+                }
+                max={
+                  filterConfig.endDate
+                    ? filterConfig.endDate.toISOString().slice(0, 10)
+                    : undefined
+                }
               />
             </Box>
             <Box>
               <Text mb={1}>End Date:</Text>
               <Input
                 type="date"
-                value={filterConfig.endDate ? filterConfig.endDate.toISOString().slice(0, 10) : ''}
-                onChange={(e) => setFilterConfig(fc => ({ ...fc, endDate: e.target.value ? new Date(e.target.value) : null }))}
-                min={filterConfig.startDate ? filterConfig.startDate.toISOString().slice(0, 10) : undefined}
+                value={
+                  filterConfig.endDate
+                    ? filterConfig.endDate.toISOString().slice(0, 10)
+                    : ""
+                }
+                onChange={(e) =>
+                  setFilterConfig((fc) => ({
+                    ...fc,
+                    endDate: e.target.value ? new Date(e.target.value) : null,
+                  }))
+                }
+                min={
+                  filterConfig.startDate
+                    ? filterConfig.startDate.toISOString().slice(0, 10)
+                    : undefined
+                }
               />
             </Box>
           </HStack>
@@ -348,11 +527,25 @@ function Servicedetail() {
       {/* Graphs */}
       <VStack spacing={6} align="stretch">
         {chartConfigs.map((cfg, idx) => (
-          <Card key={idx} bg="white" borderRadius="lg" boxShadow="sm" w="100%" h={{base:'350px',md:'450px'}}>
-            <CardHeader><Text fontSize={{base:'lg',md:'xl'}} fontWeight="bold">{cfg.title}</Text></CardHeader>
+          <Card
+            key={idx}
+            bg="white"
+            borderRadius="lg"
+            boxShadow="sm"
+            w="100%"
+            h={{ base: "350px", md: "450px" }}
+          >
+            <CardHeader>
+              <Text fontSize={{ base: "lg", md: "xl" }} fontWeight="bold">
+                {cfg.title}
+              </Text>
+            </CardHeader>
             <CardBody p={0} h="full">
               <Box h="100%">
-                <Line data={cfg.data} options={chartOptions(isMobile, cfg.title, cfg.unit)} />
+                <Line
+                  data={cfg.data}
+                  options={chartOptions(isMobile, cfg.title, cfg.unit)}
+                />
               </Box>
             </CardBody>
           </Card>

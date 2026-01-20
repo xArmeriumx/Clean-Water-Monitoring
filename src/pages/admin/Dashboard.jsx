@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   ChakraProvider,
   Box,
@@ -8,14 +8,14 @@ import {
   Center,
   useToast,
   Skeleton,
-} from '@chakra-ui/react';
-import { useQuery } from '@tanstack/react-query';
-import { useAuth } from '../../auth/AuthContext';
-import { apiGet } from '../../utils/api';
+} from "@chakra-ui/react";
+import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "../../auth/AuthContext";
+import { apiGet } from "../../utils/api";
 
 // Reusable Components
-import { AdminLayout } from '../../components/layout';
-import { StatCard, LocationCard } from '../../components/ui';
+import { AdminLayout } from "../../components/layout";
+import { StatCard, LocationCard } from "../../components/ui";
 
 function hasValueChanged(current, previous) {
   return (
@@ -27,20 +27,20 @@ function hasValueChanged(current, previous) {
 }
 
 async function fetchLocations() {
-  const res = await apiGet('/api/locations?detail=full');
-  if (!res.ok) throw new Error('Failed to fetch locations');
+  const res = await apiGet("/api/locations?detail=full");
+  if (!res.ok) throw new Error("Failed to fetch locations");
   return res.json();
 }
 
 async function fetchIssuesCount() {
-  const res = await apiGet('/api/issues/total');
-  if (!res.ok) throw new Error('Failed to fetch issues count');
+  const res = await apiGet("/api/issues/total");
+  if (!res.ok) throw new Error("Failed to fetch issues count");
   return res.json();
 }
 
 function Dashboard() {
   const [previousData, setPreviousData] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const toast = useToast();
   const navigate = useNavigate();
   const { user: authUser } = useAuth();
@@ -51,10 +51,10 @@ function Dashboard() {
     isError: isLocError,
     error: locError,
   } = useQuery({
-    queryKey: ['locations'],
+    queryKey: ["locations"],
     queryFn: fetchLocations,
-    refetchInterval: 30000,
-    staleTime: 10000,
+    refetchInterval: 10000, // รีเฟรชทุก 10 วินาที
+    staleTime: 5000, // ข้อมูลถือว่า fresh 5 วินาที
     enabled: true,
   });
 
@@ -64,15 +64,15 @@ function Dashboard() {
     isError: isIssuesError,
     error: issuesError,
   } = useQuery({
-    queryKey: ['issuesCount'],
+    queryKey: ["issuesCount"],
     queryFn: fetchIssuesCount,
-    refetchInterval: 30000,
+    refetchInterval: 30000, // issues ไม่ต้องบ่อย
     staleTime: 10000,
     enabled: true,
   });
 
   const loading = isLocLoading || isIssuesLoading;
-  const error = isLocError || isIssuesError ? (locError || issuesError) : null;
+  const error = isLocError || isIssuesError ? locError || issuesError : null;
 
   const formattedData = useMemo(() => {
     if (!locationsData) return [];
@@ -81,13 +81,13 @@ function Dashboard() {
       return {
         id: loc.id,
         location: loc.name,
-        ph: s.ph ?? 'N/A',
-        tds: s.tds ?? 'N/A',
-        turbidity: s.turbidity ?? 'N/A',
-        temp: s.temperature ?? 'N/A',
+        ph: s.ph ?? "N/A",
+        tds: s.tds ?? "N/A",
+        turbidity: s.turbidity ?? "N/A",
+        temp: s.temperature ?? "N/A",
         lastUpdate: s.timestamp
-          ? new Date(s.timestamp).toLocaleString('th-TH')
-          : 'N/A',
+          ? new Date(s.timestamp).toLocaleString("th-TH")
+          : "N/A",
       };
     });
   }, [locationsData]);
@@ -103,19 +103,19 @@ function Dashboard() {
   useEffect(() => {
     if (error) {
       toast({
-        title: 'Error',
+        title: "Error",
         description: String(error),
-        status: 'error',
+        status: "error",
         duration: 3000,
         isClosable: true,
-        position: 'top',
+        position: "top",
       });
     }
   }, [error, toast]);
 
   const filteredLocations = useMemo(() => {
     return formattedData.filter((item) =>
-      item.location.toLowerCase().includes(searchTerm.toLowerCase())
+      item.location.toLowerCase().includes(searchTerm.toLowerCase()),
     );
   }, [formattedData, searchTerm]);
 
@@ -124,29 +124,40 @@ function Dashboard() {
     return (
       <AdminLayout title="Dashboard" searchValue="" onSearchChange={() => {}}>
         <Flex gap={4} mt={6} flexWrap="wrap">
-          {Array(3).fill().map((_, i) => (
-            <Box
-              key={i}
-              flex="1"
-              minW={{ base: '150px', md: '200px' }}
-              p={4}
-              bg="white"
-              borderRadius="lg"
-              boxShadow="sm"
-            >
-              <Skeleton height="40px" width="60px" mx="auto" mb={2} />
-              <Skeleton height="16px" width="120px" mx="auto" />
-            </Box>
-          ))}
+          {Array(3)
+            .fill()
+            .map((_, i) => (
+              <Box
+                key={i}
+                flex="1"
+                minW={{ base: "150px", md: "200px" }}
+                p={4}
+                bg="white"
+                borderRadius="lg"
+                boxShadow="sm"
+              >
+                <Skeleton height="40px" width="60px" mx="auto" mb={2} />
+                <Skeleton height="16px" width="120px" mx="auto" />
+              </Box>
+            ))}
         </Flex>
         <Box mt={6}>
           <Skeleton height="24px" width="150px" mb={4} />
-          {Array(3).fill().map((_, i) => (
-            <Box key={i} bg="white" borderRadius="lg" boxShadow="sm" p={4} mb={3}>
-              <Skeleton height="24px" width="200px" mb={3} />
-              <Skeleton height="60px" />
-            </Box>
-          ))}
+          {Array(3)
+            .fill()
+            .map((_, i) => (
+              <Box
+                key={i}
+                bg="white"
+                borderRadius="lg"
+                boxShadow="sm"
+                p={4}
+                mb={3}
+              >
+                <Skeleton height="24px" width="200px" mb={3} />
+                <Skeleton height="60px" />
+              </Box>
+            ))}
         </Box>
       </AdminLayout>
     );
@@ -157,7 +168,9 @@ function Dashboard() {
     return (
       <ChakraProvider>
         <Center minH="100vh" bg="gray.50">
-          <Text color="red.500" fontSize="lg">เกิดข้อผิดพลาดในการโหลดข้อมูล</Text>
+          <Text color="red.500" fontSize="lg">
+            เกิดข้อผิดพลาดในการโหลดข้อมูล
+          </Text>
         </Center>
       </ChakraProvider>
     );
@@ -182,7 +195,7 @@ function Dashboard() {
           label="เรื่องแจ้งจากผู้ใช้"
           borderColor="orange.500"
           valueColor="orange.600"
-          onClick={() => navigate('/adminissues')}
+          onClick={() => navigate("/adminissues")}
         />
         <StatCard
           value={12}
@@ -198,7 +211,7 @@ function Dashboard() {
           จุดให้บริการ
         </Text>
         {filteredLocations.map((item, index) => {
-          const prev = previousData.find(p => p.id === item.id);
+          const prev = previousData.find((p) => p.id === item.id);
           const rowChanged = prev ? hasValueChanged(item, prev) : false;
 
           return (
